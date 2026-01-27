@@ -1,15 +1,21 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, AlertTriangle, CheckCircle, Info, AlertCircle, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Search, AlertTriangle, CheckCircle, Info, AlertCircle, TrendingUp, TrendingDown, Activity, Users, Zap, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { useDataStore } from '../hooks/useDataStore';
 import { checkTradeWithIndex } from '../lib/alerts';
 import { getAlertBgColor } from '../lib/analysis';
+import { getTrafficLight, getSentimentLevel, CLIENT_TYPES, SMART_MONEY_TYPES } from '../lib/smartMoney';
 
 export default function TradeChecker() {
-  const { tradingData, indicesData, processedData, availableIndices, selectedIndex, commonIndices, getIndexName, changeIndex } = useDataStore();
+  const { 
+    tradingData, indicesData, processedData, availableIndices, selectedIndex, commonIndices, getIndexName, changeIndex,
+    smartMoneyLoaded, getSmartMoneySentiment, isinToSecurity,
+    sessionDate
+  } = useDataStore();
   const [isin, setIsin] = useState('');
   const [action, setAction] = useState('buy');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(sessionDate || '');
   const [result, setResult] = useState(null);
+  const [sentimentData, setSentimentData] = useState(null);
   const [history, setHistory] = useState([]);
   const [lastCheckedIndex, setLastCheckedIndex] = useState(null);
 
@@ -20,14 +26,16 @@ export default function TradeChecker() {
     return Array.from(isins).sort();
   }, [tradingData]);
 
-  // Get date range
+  // Get date range - limited by session date
   const dateRange = useMemo(() => {
     if (!tradingData || tradingData.length === 0) return { min: '', max: '' };
     const dates = tradingData
       .map(row => row.tradeDate.split('T')[0].split(' ')[0])
       .sort();
-    return { min: dates[0], max: dates[dates.length - 1] };
-  }, [tradingData]);
+    // Use session date as max if available, otherwise use the last date in data
+    const maxDate = sessionDate || dates[dates.length - 1];
+    return { min: dates[0], max: maxDate };
+  }, [tradingData, sessionDate]);
 
   const runCheck = useCallback((indexToUse) => {
     if (!isin || !date) {
@@ -43,6 +51,7 @@ export default function TradeChecker() {
         message: 'Please enter ISIN and date',
         alertLevel: 'NONE',
       });
+      setSentimentData(null);
       return;
     }
 
@@ -50,12 +59,22 @@ export default function TradeChecker() {
     setResult(checkResult);
     setLastCheckedIndex(selectedIndex);
     
+    // Fetch smart money sentiment data
+    if (smartMoneyLoaded) {
+      const sentiment = getSmartMoneySentiment(isin, date);
+      setSentimentData(sentiment);
+    } else {
+      setSentimentData(null);
+    }
+    
     // Add to history
     if (checkResult) {
+      const sentiment = smartMoneyLoaded ? getSmartMoneySentiment(isin, date) : null;
       setHistory(prev => [{
         ...checkResult,
         indexUsed: getIndexName(selectedIndex),
         timestamp: new Date().toLocaleTimeString(),
+        smartMoneySentiment: sentiment?.smartMoneySentiment,
       }, ...prev.slice(0, 9)]);
     }
   };
@@ -121,7 +140,7 @@ export default function TradeChecker() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Form */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white rounded-xl shadow-sm border p-6 min-w-[400px] h-[420px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Details</h3>
           
           <div className="space-y-4">
@@ -211,15 +230,42 @@ export default function TradeChecker() {
         </div>
 
         {/* Result Card */}
-        <div>
+        <div className="space-y-4">
           {result ? (
-            <AlertResultCard result={result} indexName={getIndexName(selectedIndex)} />
+            <>
+              <AlertResultCard result={result} indexName={getIndexName(selectedIndex)} />
+              
+              {/* Smart Money Sentiment Panel */}
+              {sentimentData && (
+                <SmartMoneySentimentCard 
+                  sentimentData={sentimentData} 
+                  isBuy={action === 'buy'}
+                  securityInfo={isinToSecurity.get(isin.toUpperCase())}
+                />
+              )}
+              
+              {/* No Smart Money Data Notice */}
+              {!sentimentData && smartMoneyLoaded && (
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-500 flex items-center gap-2">
+                    <Info className="w-4 h-4" />
+                    No smart money data available for this security on this date
+                  </p>
+                </div>
+              )}
+            </>
           ) : (
             <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-8 text-center h-full flex flex-col items-center justify-center">
               <Search className="w-12 h-12 text-gray-400 mb-4" />
               <p className="text-gray-500">
                 Enter trade details and click "Check Trade" to see the alert
               </p>
+              {smartMoneyLoaded && (
+                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                  <Zap className="w-3 h-3" />
+                  Smart money sentiment analysis enabled
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -248,6 +294,7 @@ export default function TradeChecker() {
                   <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Index</th>
                   <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Idx Chg</th>
                   <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Sec Chg</th>
+                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Smart $</th>
                   <th className="text-center py-2 px-3 text-sm font-medium text-gray-600">Alert</th>
                 </tr>
               </thead>
@@ -280,6 +327,15 @@ export default function TradeChecker() {
                         </span>
                       ) : (
                         <span className="text-gray-400">N/A</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-sm text-right font-mono">
+                      {item.smartMoneySentiment != null ? (
+                        <span className={item.smartMoneySentiment >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {item.smartMoneySentiment >= 0 ? '+' : ''}{(item.smartMoneySentiment * 100).toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="py-2 px-3 text-center">
@@ -332,7 +388,7 @@ function AlertResultCard({ result, indexName }) {
   const Icon = config.icon;
 
   return (
-    <div className={`rounded-xl border-2 p-6 ${config.bgClass}`}>
+    <div className={`rounded-xl border-2 p-6 ${config.bgClass} w-[480px] min-h-[320px]`}>
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <Icon className={`w-8 h-8 ${config.iconClass}`} />
@@ -353,7 +409,7 @@ function AlertResultCard({ result, indexName }) {
 
       {/* Index vs Security Comparison */}
       {result.found && (
-        <div className="mb-4 p-4 bg-white rounded-lg space-y-3">
+        <div className="mb-4 p-4 bg-white rounded-lg space-y-3 h-[140px]">
           {/* Index Change (Market) */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600 flex items-center gap-2">
@@ -399,7 +455,7 @@ function AlertResultCard({ result, indexName }) {
 
       {/* No Data Case */}
       {!result.found && result.marketChange == null && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-gray-500">
+        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-gray-500 h-[60px]">
           No market data available for this date
         </div>
       )}
@@ -409,7 +465,7 @@ function AlertResultCard({ result, indexName }) {
 
       {/* Counter-Market Indicator */}
       {result.found && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 pt-4 border-t border-gray-200 h-[40px]">
           {result.isCounter ? (
             <div className="flex items-center gap-2 text-amber-700">
               <AlertTriangle className="w-5 h-5" />
@@ -438,6 +494,155 @@ function AlertBadge({ level }) {
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${classes[level] || classes.NONE}`}>
       {level}
+    </span>
+  );
+}
+
+/**
+ * Smart Money Sentiment Card with Traffic Light
+ */
+function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
+  const trafficLight = getTrafficLight(isBuy, sentimentData.smartMoneySentiment);
+  
+  const trafficColors = {
+    GREEN: {
+      bg: 'bg-green-50 border-green-300',
+      light: 'bg-green-500',
+      text: 'text-green-700',
+      icon: ThumbsUp,
+    },
+    YELLOW: {
+      bg: 'bg-yellow-50 border-yellow-300',
+      light: 'bg-yellow-500',
+      text: 'text-yellow-700',
+      icon: Minus,
+    },
+    RED: {
+      bg: 'bg-red-50 border-red-300',
+      light: 'bg-red-500',
+      text: 'text-red-700',
+      icon: ThumbsDown,
+    },
+  };
+  
+  const config = trafficColors[trafficLight.color];
+  const Icon = config.icon;
+  
+  return (
+    <div className={`rounded-xl border-2 p-5 ${config.bg} w-[480px] min-h-[520px]`}>
+      {/* Header with Traffic Light */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <Users className="w-5 h-5 text-gray-600" />
+          <h4 className="font-semibold text-gray-900">Smart Money Sentiment</h4>
+        </div>
+        
+        {/* Traffic Light */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'RED' ? 'bg-red-500' : 'bg-red-200'}`} />
+            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200'}`} />
+            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200'}`} />
+          </div>
+          <span className={`font-bold ${config.text}`}>{trafficLight.label}</span>
+        </div>
+      </div>
+      
+      {/* Recommendation Badge */}
+      <div className={`mb-4 p-3 rounded-lg ${config.light} text-white h-[80px]`}>
+        <div className="flex items-center gap-2">
+          <Icon className="w-5 h-5" />
+          <span className="font-bold text-lg">{trafficLight.recommendation}</span>
+        </div>
+        <p className="text-sm mt-1 opacity-90">{trafficLight.message}</p>
+      </div>
+      
+      {/* Overall Sentiment Score */}
+      <div className="mb-4 p-3 bg-white rounded-lg h-[100px]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-600">Institutional Sentiment</span>
+          <span className={`text-lg font-bold ${
+            sentimentData.smartMoneySentiment >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {sentimentData.smartMoneySentiment >= 0 ? '+' : ''}{(sentimentData.smartMoneySentiment * 100).toFixed(1)}%
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5 relative overflow-hidden">
+          <div 
+            className={`absolute h-2.5 rounded-full ${sentimentData.smartMoneySentiment >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+            style={{ 
+              width: `${Math.abs(sentimentData.smartMoneySentiment) * 50}%`,
+              left: sentimentData.smartMoneySentiment >= 0 ? '50%' : `${50 - Math.abs(sentimentData.smartMoneySentiment) * 50}%`,
+            }}
+          />
+          {/* Center line marker */}
+          <div className="absolute left-1/2 top-0 w-0.5 h-2.5 bg-gray-400" />
+        </div>
+        <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <span>Strong Sell</span>
+          <span>Neutral</span>
+          <span>Strong Buy</span>
+        </div>
+      </div>
+      
+      {/* Breakdown by Investor Type */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">By Investor Type</p>
+        <div className="grid grid-cols-2 gap-2">
+          {SMART_MONEY_TYPES.map(type => {
+            const typeSentiment = sentimentData.typeSentiments?.[type];
+            if (typeSentiment === undefined) return null;
+            
+            const typeInfo = CLIENT_TYPES[type];
+            const level = getSentimentLevel(typeSentiment);
+            
+            return (
+              <div key={type} className="p-2 bg-white rounded border h-[60px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700">{typeInfo?.name || type}</span>
+                  <SentimentBadge sentiment={typeSentiment} />
+                </div>
+                <div className="text-right text-sm font-mono mt-1">
+                  <span className={typeSentiment >= 0 ? 'text-green-600' : 'text-red-600'}>
+                    {typeSentiment >= 0 ? '+' : ''}{(typeSentiment * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Volume Info */}
+      <div className="mt-4 pt-3 border-t border-gray-200 grid grid-cols-2 gap-4 text-sm h-[60px]">
+        <div>
+          <span className="text-gray-500">Total Buy Volume</span>
+          <p className="font-mono text-green-600">₪{(sentimentData.smartMoneyBuy / 1000000).toFixed(2)}M</p>
+        </div>
+        <div>
+          <span className="text-gray-500">Total Sell Volume</span>
+          <p className="font-mono text-red-600">₪{(sentimentData.smartMoneySell / 1000000).toFixed(2)}M</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SentimentBadge({ sentiment }) {
+  let bgClass = 'bg-gray-100 text-gray-700';
+  let label = 'Neutral';
+  
+  if (sentiment >= 0.3) {
+    bgClass = 'bg-green-100 text-green-700';
+    label = sentiment >= 0.7 ? 'Strong Buy' : 'Buy';
+  } else if (sentiment <= -0.3) {
+    bgClass = 'bg-red-100 text-red-700';
+    label = sentiment <= -0.7 ? 'Strong Sell' : 'Sell';
+  }
+  
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${bgClass}`}>
+      {label}
     </span>
   );
 }

@@ -1,15 +1,22 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, TrendingUp } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, TrendingUp, Users, Database } from 'lucide-react';
 import { parseCSV, detectFileType } from '../lib/csvParser';
 import { useDataStore } from '../hooks/useDataStore';
 
 export default function FileUpload({ onComplete }) {
-  const { loadTransactions, loadTradingData, loadIndicesData, processData, transactions, tradingData, indicesData } = useDataStore();
+  const { 
+    loadTransactions, loadTradingData, loadIndicesData, processData, 
+    transactions, tradingData, indicesData,
+    loadSecuritiesData, loadSmartMoneyData, aggregateSmartMoney,
+    smartMoneyRaw, securitiesData, securityToIsin
+  } = useDataStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [transactionFile, setTransactionFile] = useState(null);
   const [tradingFile, setTradingFile] = useState(null);
   const [indicesFile, setIndicesFile] = useState(null);
+  const [securitiesFile, setSecuritiesFile] = useState(null);
+  const [smartMoneyFile, setSmartMoneyFile] = useState(null);
 
   const handleFileUpload = useCallback(async (file, expectedType) => {
     setLoading(true);
@@ -18,6 +25,19 @@ export default function FileUpload({ onComplete }) {
     try {
       const data = await parseCSV(file);
       const detectedType = detectFileType(data);
+      
+      // Allow explicit type for new file types
+      if (expectedType === 'securities' || expectedType === 'smartmoney') {
+        if (expectedType === 'securities') {
+          const count = loadSecuritiesData(data);
+          setSecuritiesFile({ name: file.name, rows: count });
+        } else if (expectedType === 'smartmoney') {
+          const count = loadSmartMoneyData(data, securityToIsin);
+          setSmartMoneyFile({ name: file.name, rows: count });
+        }
+        setLoading(false);
+        return;
+      }
       
       if (detectedType === 'unknown') {
         setError('Could not detect file type. Please ensure correct CSV format.');
@@ -46,7 +66,7 @@ export default function FileUpload({ onComplete }) {
     }
 
     setLoading(false);
-  }, [loadTransactions, loadTradingData, loadIndicesData]);
+  }, [loadTransactions, loadTradingData, loadIndicesData, loadSecuritiesData, loadSmartMoneyData, securityToIsin]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -61,13 +81,18 @@ export default function FileUpload({ onComplete }) {
   const handleProcess = () => {
     const result = processData();
     if (result) {
+      // Aggregate smart money data if both files are loaded
+      if (smartMoneyRaw.length > 0 && securityToIsin.size > 0) {
+        aggregateSmartMoney();
+      }
       onComplete();
     } else {
-      setError('Could not process data. Please upload all three files.');
+      setError('Could not process data. Please upload all three required files.');
     }
   };
 
   const canProcess = transactions.length > 0 && tradingData.length > 0 && indicesData.length > 0;
+  const hasSmartMoneyData = smartMoneyRaw.length > 0 && securitiesData.length > 0;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -148,6 +173,44 @@ export default function FileUpload({ onComplete }) {
                 </span>
               </label>
             </div>
+            
+            {/* Smart Money Data Files */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-500 mb-3">Smart Money Data (Optional - enables sentiment analysis)</p>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file, 'securities');
+                    }}
+                  />
+                  <span className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                    <Database className="w-4 h-4" />
+                    Securities Mapping
+                  </span>
+                </label>
+                
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file, 'smartmoney');
+                    }}
+                  />
+                  <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    <Users className="w-4 h-4" />
+                    Smart Money EOD
+                  </span>
+                </label>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -180,6 +243,34 @@ export default function FileUpload({ onComplete }) {
           example="indices_eod.csv"
           required
         />
+        
+        {/* Smart Money Files */}
+        <div className="pt-3 border-t border-gray-200">
+          <p className="text-xs text-gray-500 mb-2">Smart Money Data (enables sentiment-based alerts)</p>
+          <div className="space-y-2">
+            <FileStatus
+              label="Securities Mapping"
+              file={securitiesFile}
+              example="trade_securities.csv"
+              optional
+            />
+            <FileStatus
+              label="Smart Money EOD"
+              file={smartMoneyFile}
+              example="smart_money_eod.csv"
+              optional
+            />
+          </div>
+        </div>
+        
+        {hasSmartMoneyData && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-700 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Smart money sentiment analysis enabled
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Process Button */}
@@ -208,8 +299,19 @@ export default function FileUpload({ onComplete }) {
             <strong>Indices EOD:</strong> tradeDate, indexId, closingIndexPrice, ...
           </p>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          Counter-market analysis compares trades against market index direction (default: TA-125).
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <p className="text-sm text-gray-600 font-medium mb-1">Smart Money Files (Optional):</p>
+          <div className="text-sm text-gray-600 space-y-1">
+            <p>
+              <strong>Securities Mapping:</strong> securityId, isin, symbol, companyName, ...
+            </p>
+            <p>
+              <strong>Smart Money EOD:</strong> tradeDate, clientTypeId, securityId, turnoverBuyNis, turnoverSellNis, ...
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          Smart money data enables sentiment-based alerts showing institutional investor activity.
         </p>
       </div>
     </div>

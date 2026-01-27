@@ -1,6 +1,7 @@
 import { useDataStore } from '../hooks/useDataStore';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Target, BarChart3, Trophy, Users, Filter, Info, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, BarChart3, Trophy, Users, Filter, Info, Activity, Zap, CheckCircle, XCircle } from 'lucide-react';
+import { CLIENT_TYPES, SMART_MONEY_TYPES } from '../lib/smartMoney';
 
 const COLORS = {
   counter: '#F59E0B',
@@ -10,7 +11,14 @@ const COLORS = {
 };
 
 export default function Dashboard() {
-  const { processedData, traders, selectedTrader, filterByTrader, availableIndices, selectedIndex, commonIndices, getIndexName, changeIndex } = useDataStore();
+  const { 
+    processedData, traders, selectedTrader, filterByTrader, 
+    availableIndices, selectedIndex, commonIndices, getIndexName, changeIndex,
+    smartMoneyLoaded, getHistoricalPerformance
+  } = useDataStore();
+  
+  // Calculate historical performance if smart money data is loaded
+  const historicalPerf = smartMoneyLoaded ? getHistoricalPerformance(5) : null;
 
   if (!processedData) {
     return (
@@ -211,9 +219,9 @@ export default function Dashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pie Chart */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white rounded-xl shadow-sm border p-6 h-[360px] min-w-[400px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Distribution</h3>
-          <div className="h-64">
+          <div className="h-[256px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -247,9 +255,9 @@ export default function Dashboard() {
         </div>
 
         {/* Bar Chart */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white rounded-xl shadow-sm border p-6 h-[360px] min-w-[400px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Counter-Market % by Action</h3>
-          <div className="h-64">
+          <div className="h-[256px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} layout="vertical">
                 <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
@@ -286,6 +294,140 @@ export default function Dashboard() {
           />
         </div>
       </div>
+
+      {/* Smart Money Performance Analysis */}
+      {historicalPerf && (historicalPerf.withSmartMoney.trades > 0 || historicalPerf.againstSmartMoney.trades > 0) && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Zap className="w-6 h-6 text-purple-500" />
+            <h3 className="text-lg font-semibold text-gray-900">Smart Money Alignment Analysis</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">5-day outcomes</span>
+          </div>
+          
+          <p className="text-sm text-gray-600 mb-4">
+            Historical win rate when your trades aligned with or opposed institutional sentiment
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* With Smart Money */}
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg h-[130px] min-w-[200px]">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="font-medium text-green-800">With Smart Money</span>
+              </div>
+              <p className="text-3xl font-bold text-green-700">
+                {historicalPerf.withSmartMoney.winRate.toFixed(0)}%
+              </p>
+              <p className="text-sm text-green-600">
+                Win rate ({historicalPerf.withSmartMoney.wins}/{historicalPerf.withSmartMoney.trades} trades)
+              </p>
+            </div>
+            
+            {/* Against Smart Money */}
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg h-[130px] min-w-[200px]">
+              <div className="flex items-center gap-2 mb-2">
+                <XCircle className="w-5 h-5 text-red-600" />
+                <span className="font-medium text-red-800">Against Smart Money</span>
+              </div>
+              <p className="text-3xl font-bold text-red-700">
+                {historicalPerf.againstSmartMoney.winRate.toFixed(0)}%
+              </p>
+              <p className="text-sm text-red-600">
+                Win rate ({historicalPerf.againstSmartMoney.wins}/{historicalPerf.againstSmartMoney.trades} trades)
+              </p>
+            </div>
+            
+            {/* Neutral */}
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg h-[130px] min-w-[200px]">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="w-5 h-5 text-gray-600" />
+                <span className="font-medium text-gray-800">Neutral Sentiment</span>
+              </div>
+              <p className="text-3xl font-bold text-gray-700">
+                {historicalPerf.neutral.winRate.toFixed(0)}%
+              </p>
+              <p className="text-sm text-gray-600">
+                Win rate ({historicalPerf.neutral.wins}/{historicalPerf.neutral.trades} trades)
+              </p>
+            </div>
+          </div>
+          
+          {/* Breakdown by Investor Type */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium text-gray-700 mb-3">Win Rate by Investor Type Alignment</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 font-medium text-gray-600">Investor Type</th>
+                    <th className="text-center py-2 px-3 font-medium text-green-600">With (Win Rate)</th>
+                    <th className="text-center py-2 px-3 font-medium text-red-600">Against (Win Rate)</th>
+                    <th className="text-center py-2 px-3 font-medium text-gray-600">Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SMART_MONEY_TYPES.map(type => {
+                    const typeData = historicalPerf.byType[type];
+                    if (!typeData || (typeData.with.trades === 0 && typeData.against.trades === 0)) return null;
+                    
+                    const diff = typeData.with.winRate - typeData.against.winRate;
+                    
+                    return (
+                      <tr key={type} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="py-2 px-3">
+                          <span className="font-medium">{CLIENT_TYPES[type]?.name || type}</span>
+                          <span className="text-xs text-gray-400 ml-2">({type})</span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          {typeData.with.trades > 0 ? (
+                            <span className="text-green-600 font-medium">
+                              {typeData.with.winRate.toFixed(0)}%
+                              <span className="text-xs text-gray-400 ml-1">({typeData.with.trades})</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          {typeData.against.trades > 0 ? (
+                            <span className="text-red-600 font-medium">
+                              {typeData.against.winRate.toFixed(0)}%
+                              <span className="text-xs text-gray-400 ml-1">({typeData.against.trades})</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          {typeData.with.trades > 0 && typeData.against.trades > 0 ? (
+                            <span className={`font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                              {diff > 0 ? '+' : ''}{diff.toFixed(0)}%
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div className="mt-4 p-4 bg-purple-50 rounded-lg">
+            <p className="text-sm text-purple-800">
+              <strong>Insight:</strong> {
+                historicalPerf.withSmartMoney.winRate > historicalPerf.againstSmartMoney.winRate
+                  ? `Trading WITH smart money has historically performed ${(historicalPerf.withSmartMoney.winRate - historicalPerf.againstSmartMoney.winRate).toFixed(0)}% better than trading against them.`
+                  : historicalPerf.againstSmartMoney.winRate > historicalPerf.withSmartMoney.winRate
+                    ? `Interestingly, your contrarian trades have outperformed by ${(historicalPerf.againstSmartMoney.winRate - historicalPerf.withSmartMoney.winRate).toFixed(0)}%.`
+                    : 'Smart money alignment has had similar win rates in both directions.'
+              }
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Per-Trader Comparison */}
       {selectedTrader === 'all' && traderStats && Object.keys(traderStats).length > 1 && (
@@ -368,7 +510,7 @@ function MetricCard({ icon: Icon, label, value, subtext, color }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-5">
+    <div className="bg-white rounded-xl shadow-sm border p-5 h-[140px] w-full min-w-[200px]">
       <div className="flex items-center gap-3 mb-3">
         <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
           <Icon className="w-5 h-5" />
@@ -385,7 +527,7 @@ function ActionCard({ action, total, counterPct, description, color }) {
   const bgColor = color === 'blue' ? 'bg-blue-500' : 'bg-red-500';
   
   return (
-    <div className="border rounded-lg p-4">
+    <div className="border rounded-lg p-4 h-[140px] min-w-[280px]">
       <div className="flex items-center justify-between mb-3">
         <span className={`px-3 py-1 text-white text-sm font-medium rounded ${bgColor}`}>
           {action}

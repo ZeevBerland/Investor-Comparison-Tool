@@ -1,4 +1,15 @@
 import { createContext, useContext, useState, useCallback } from 'react';
+import { 
+  aggregateSmartMoneyData, 
+  buildSecurityToIsinMap, 
+  buildIsinToSecurityMap,
+  CLIENT_TYPES,
+  SMART_MONEY_TYPES,
+  getHistoricalData,
+  detectSellingPattern,
+  analyzePatternOutcomes,
+  calculateHistoricalPerformance,
+} from '../lib/smartMoney';
 
 const DataContext = createContext(null);
 
@@ -108,6 +119,19 @@ export function DataProvider({ children }) {
   const [processedData, setProcessedData] = useState(null);
   const [selectedTrader, setSelectedTrader] = useState('all');
   const [traders, setTraders] = useState([]);
+  
+  // Smart money data state
+  const [smartMoneyRaw, setSmartMoneyRaw] = useState([]);
+  const [securitiesData, setSecuritiesData] = useState([]);
+  const [securityToIsin, setSecurityToIsin] = useState(new Map());
+  const [isinToSecurity, setIsinToSecurity] = useState(new Map());
+  const [smartMoneyAggregated, setSmartMoneyAggregated] = useState(new Map());
+  const [smartMoneyLoaded, setSmartMoneyLoaded] = useState(false);
+
+  // Session state
+  const [sessionTrader, setSessionTrader] = useState(null);
+  const [sessionDate, setSessionDate] = useState(null);
+  const [isSessionActive, setIsSessionActive] = useState(false);
 
   const loadTransactions = useCallback((data) => {
     // Normalize and clean transaction data
@@ -183,7 +207,92 @@ export function DataProvider({ children }) {
     return allWithChanges.length;
   }, []);
 
-  const processData = useCallback((traderFilter = 'all', indexId = null) => {
+  // Load securities mapping data (trade_securities.csv)
+  const loadSecuritiesData = useCallback((data) => {
+    const cleaned = data.filter(row => row.securityId && row.isin);
+    setSecuritiesData(cleaned);
+    
+    const secToIsin = buildSecurityToIsinMap(cleaned);
+    const isinToSec = buildIsinToSecurityMap(cleaned);
+    
+    setSecurityToIsin(secToIsin);
+    setIsinToSecurity(isinToSec);
+    
+    return cleaned.length;
+  }, []);
+
+  // Load smart money EOD data
+  const loadSmartMoneyData = useCallback((data, existingSecToIsin = null) => {
+    const cleaned = data.filter(row => row.tradeDate && row.securityId && row.clientTypeId);
+    setSmartMoneyRaw(cleaned);
+    
+    // Use provided mapping or current state
+    const mapping = existingSecToIsin || securityToIsin;
+    
+    if (mapping.size > 0) {
+      const aggregated = aggregateSmartMoneyData(cleaned, mapping);
+      setSmartMoneyAggregated(aggregated);
+      setSmartMoneyLoaded(true);
+    }
+    
+    return cleaned.length;
+  }, [securityToIsin]);
+
+  // Aggregate smart money data (call after both datasets are loaded)
+  const aggregateSmartMoney = useCallback(() => {
+    if (smartMoneyRaw.length === 0 || securityToIsin.size === 0) {
+      return;
+    }
+    
+    const aggregated = aggregateSmartMoneyData(smartMoneyRaw, securityToIsin);
+    setSmartMoneyAggregated(aggregated);
+    setSmartMoneyLoaded(true);
+    
+    return aggregated.size;
+  }, [smartMoneyRaw, securityToIsin]);
+
+  // Get smart money sentiment for a specific ISIN and date
+  const getSmartMoneySentiment = useCallback((isin, date) => {
+    const isinClean = String(isin).trim().toUpperCase();
+    const dateClean = date.split('T')[0].split(' ')[0];
+    const key = `${isinClean}_${dateClean}`;
+    
+    return smartMoneyAggregated.get(key) || null;
+  }, [smartMoneyAggregated]);
+
+  // Get smart money history for a security
+  const getSmartMoneyHistory = useCallback((isin, endDate, lookbackDays = 30) => {
+    return getHistoricalData(smartMoneyAggregated, isin.toUpperCase(), endDate, lookbackDays);
+  }, [smartMoneyAggregated]);
+
+  // Detect selling patterns for a security
+  const detectSmartMoneyPattern = useCallback((isin, endDate, lookbackDays = 10) => {
+    const history = getHistoricalData(smartMoneyAggregated, isin.toUpperCase(), endDate, lookbackDays);
+    return detectSellingPattern(history);
+  }, [smartMoneyAggregated]);
+
+  // Analyze historical outcomes for similar patterns
+  const getPatternOutcomes = useCallback((isin, sentimentThreshold = -0.5, lookforwardDays = 5) => {
+    if (!smartMoneyLoaded || tradingData.length === 0) return null;
+    return analyzePatternOutcomes(smartMoneyAggregated, tradingData, isin, sentimentThreshold, lookforwardDays);
+  }, [smartMoneyAggregated, tradingData, smartMoneyLoaded]);
+
+  // Calculate historical performance trading with/against smart money
+  const getHistoricalPerformance = useCallback((holdingDays = 5) => {
+    if (!smartMoneyLoaded || transactions.length === 0 || tradingData.length === 0) return null;
+    return calculateHistoricalPerformance(transactions, smartMoneyAggregated, tradingData, holdingDays);
+  }, [transactions, smartMoneyAggregated, tradingData, smartMoneyLoaded]);
+
+  // Get available dates from trading data
+  const getAvailableDates = useCallback(() => {
+    if (tradingData.length === 0) return [];
+    const dates = [...new Set(tradingData.map(row => 
+      row.tradeDate.split('T')[0].split(' ')[0]
+    ))].sort();
+    return dates;
+  }, [tradingData]);
+
+  const processData = useCallback((traderFilter = 'all', indexId = null, maxDate = null) => {
     if (transactions.length === 0 || tradingData.length === 0) {
       return null;
     }
@@ -191,10 +300,29 @@ export function DataProvider({ children }) {
     // Use provided index or current selected index
     const useIndex = indexId || selectedIndex;
 
+    // Helper to parse date string to YYYY-MM-DD format
+    const parseDateStr = (dateStr) => {
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      return dateStr.split('T')[0].split(' ')[0];
+    };
+
     // Filter transactions by trader if specified
-    const filteredTransactions = traderFilter === 'all' 
+    let filteredTransactions = traderFilter === 'all' 
       ? transactions 
       : transactions.filter(tx => tx.InvestmentManager === traderFilter);
+
+    // Filter by max date if specified (session date filter)
+    if (maxDate) {
+      filteredTransactions = filteredTransactions.filter(tx => {
+        const txDate = parseDateStr(tx.OrderDate);
+        return txDate <= maxDate;
+      });
+    }
 
     // Create a lookup map for trading data by ISIN + date
     const tradingMap = new Map();
@@ -285,9 +413,12 @@ export function DataProvider({ children }) {
       };
     }
 
-    // Get trader portfolios (unique ISINs per trader)
+    // Get trader portfolios (unique ISINs per trader) - filtered by maxDate if set
     const traderPortfolios = {};
-    transactions.forEach(tx => {
+    const txsForPortfolios = maxDate 
+      ? transactions.filter(tx => parseDateStr(tx.OrderDate) <= maxDate)
+      : transactions;
+    txsForPortfolios.forEach(tx => {
       const trader = tx.InvestmentManager;
       if (!traderPortfolios[trader]) traderPortfolios[trader] = new Set();
       traderPortfolios[trader].add(tx.ISIN);
@@ -336,16 +467,44 @@ export function DataProvider({ children }) {
     setSelectedTrader('all');
     setSelectedIndex(DEFAULT_INDEX);
     setTraders([]);
+    // Reset smart money data
+    setSmartMoneyRaw([]);
+    setSecuritiesData([]);
+    setSecurityToIsin(new Map());
+    setIsinToSecurity(new Map());
+    setSmartMoneyAggregated(new Map());
+    setSmartMoneyLoaded(false);
+    // Reset session
+    setSessionTrader(null);
+    setSessionDate(null);
+    setIsSessionActive(false);
+  }, []);
+
+  // Start session - filter to trader and date
+  const startSession = useCallback((trader, date) => {
+    setSessionTrader(trader);
+    setSessionDate(date);
+    setIsSessionActive(true);
+    processData(trader, selectedIndex, date);
+  }, [processData, selectedIndex]);
+
+  // End session - keep data loaded but clear session
+  const endSession = useCallback(() => {
+    setSessionTrader(null);
+    setSessionDate(null);
+    setIsSessionActive(false);
+    setProcessedData(null);
+    setSelectedTrader('all');
   }, []);
 
   const filterByTrader = useCallback((trader) => {
-    processData(trader, selectedIndex);
-  }, [processData, selectedIndex]);
+    processData(trader, selectedIndex, sessionDate);
+  }, [processData, selectedIndex, sessionDate]);
 
   const changeIndex = useCallback((indexId) => {
     setSelectedIndex(indexId);
-    processData(selectedTrader, indexId);
-  }, [processData, selectedTrader]);
+    processData(selectedTrader, indexId, sessionDate);
+  }, [processData, selectedTrader, sessionDate]);
 
   return (
     <DataContext.Provider value={{
@@ -368,6 +527,30 @@ export function DataProvider({ children }) {
       filterByTrader,
       changeIndex,
       reset,
+      // Session state and functions
+      sessionTrader,
+      sessionDate,
+      isSessionActive,
+      getAvailableDates,
+      startSession,
+      endSession,
+      // Smart money data and functions
+      smartMoneyRaw,
+      securitiesData,
+      securityToIsin,
+      isinToSecurity,
+      smartMoneyAggregated,
+      smartMoneyLoaded,
+      loadSecuritiesData,
+      loadSmartMoneyData,
+      aggregateSmartMoney,
+      getSmartMoneySentiment,
+      getSmartMoneyHistory,
+      detectSmartMoneyPattern,
+      getPatternOutcomes,
+      getHistoricalPerformance,
+      CLIENT_TYPES,
+      SMART_MONEY_TYPES,
     }}>
       {children}
     </DataContext.Provider>

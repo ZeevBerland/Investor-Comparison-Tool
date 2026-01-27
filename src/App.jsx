@@ -2,20 +2,61 @@ import { useState } from 'react';
 import { DataProvider } from './hooks/useDataStore';
 import Layout from './components/Layout';
 import FileUpload from './components/FileUpload';
+import TraderSelection from './components/TraderSelection';
 import Dashboard from './components/Dashboard';
 import TradeChecker from './components/TradeChecker';
 import PortfolioMonitor from './components/PortfolioMonitor';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('upload');
+  // App phases: 'upload' | 'selectTrader' | 'main'
+  const [appPhase, setAppPhase] = useState('upload');
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Handle file upload completion - go to trader selection
+  const handleUploadComplete = () => {
+    setAppPhase('selectTrader');
+  };
+
+  // Handle session start - go to main app
+  const handleSessionStart = () => {
+    setAppPhase('main');
+    setActiveTab('dashboard');
+  };
+
+  // Handle logout - go back to trader selection (keep data loaded)
+  const handleLogout = () => {
+    setAppPhase('selectTrader');
+    setActiveTab('dashboard');
+  };
+
+  // Handle full reset - go back to upload
+  const handleReset = () => {
+    setAppPhase('upload');
+    setActiveTab('dashboard');
+  };
 
   return (
     <DataProvider>
-      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-        {activeTab === 'upload' && <FileUpload onComplete={() => setActiveTab('dashboard')} />}
-        {activeTab === 'dashboard' && <Dashboard />}
-        {activeTab === 'checker' && <TradeChecker />}
-        {activeTab === 'monitor' && <PortfolioMonitor />}
+      <Layout 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab}
+        appPhase={appPhase}
+        onLogout={handleLogout}
+        onReset={handleReset}
+      >
+        {appPhase === 'upload' && (
+          <FileUpload onComplete={handleUploadComplete} />
+        )}
+        {appPhase === 'selectTrader' && (
+          <TraderSelection onSessionStart={handleSessionStart} />
+        )}
+        {appPhase === 'main' && (
+          <>
+            {activeTab === 'dashboard' && <Dashboard />}
+            {activeTab === 'checker' && <TradeChecker />}
+            {activeTab === 'monitor' && <PortfolioMonitor />}
+          </>
+        )}
       </Layout>
     </DataProvider>
   );
