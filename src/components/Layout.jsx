@@ -31,7 +31,7 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
                 <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <h1 className="text-base sm:text-xl font-semibold text-gray-900 truncate">
-                Investor Comparison
+                Investor Helper
               </h1>
             </div>
             
@@ -130,7 +130,7 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
       <footer className="bg-white border-t mt-auto">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
           <p className="text-center text-xs sm:text-sm text-gray-500">
-            Investor Comparison Tool - POC Demo
+            Investor Helper - POC Demo
           </p>
         </div>
       </footer>
