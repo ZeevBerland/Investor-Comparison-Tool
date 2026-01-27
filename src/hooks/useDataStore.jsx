@@ -238,6 +238,48 @@ export function DataProvider({ children }) {
     return cleaned.length;
   }, [securityToIsin]);
 
+  // Load all data from pre-parsed ZIP data (for auto-loading)
+  const loadFromZipData = useCallback((zipResult) => {
+    const { data } = zipResult;
+    let secToIsinMap = new Map();
+    
+    // Load transactions (required)
+    if (data.transactions) {
+      loadTransactions(data.transactions);
+    }
+    
+    // Load trading data (required)
+    if (data.trading) {
+      loadTradingData(data.trading);
+    }
+    
+    // Load indices data (required)
+    if (data.indices) {
+      loadIndicesData(data.indices);
+    }
+    
+    // Load securities mapping (optional) - must load before smart money
+    if (data.securities) {
+      const cleaned = data.securities.filter(row => row.securityId && row.isin);
+      setSecuritiesData(cleaned);
+      secToIsinMap = buildSecurityToIsinMap(cleaned);
+      const isinToSec = buildIsinToSecurityMap(cleaned);
+      setSecurityToIsin(secToIsinMap);
+      setIsinToSecurity(isinToSec);
+    }
+    
+    // Load smart money data (optional)
+    if (data.smartmoney && secToIsinMap.size > 0) {
+      const cleaned = data.smartmoney.filter(row => row.tradeDate && row.securityId && row.clientTypeId);
+      setSmartMoneyRaw(cleaned);
+      const aggregated = aggregateSmartMoneyData(cleaned, secToIsinMap);
+      setSmartMoneyAggregated(aggregated);
+      setSmartMoneyLoaded(true);
+    }
+    
+    return true;
+  }, [loadTransactions, loadTradingData, loadIndicesData]);
+
   // Aggregate smart money data (call after both datasets are loaded)
   const aggregateSmartMoney = useCallback(() => {
     if (smartMoneyRaw.length === 0 || securityToIsin.size === 0) {
@@ -543,6 +585,7 @@ export function DataProvider({ children }) {
       smartMoneyLoaded,
       loadSecuritiesData,
       loadSmartMoneyData,
+      loadFromZipData,
       aggregateSmartMoney,
       getSmartMoneySentiment,
       getSmartMoneyHistory,

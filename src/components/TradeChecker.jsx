@@ -140,7 +140,7 @@ export default function TradeChecker() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Form */}
-        <div className="bg-white rounded-xl shadow-sm border p-6 min-w-[400px] h-[420px]">
+        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 h-auto lg:h-[420px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Details</h3>
           
           <div className="space-y-4">
@@ -388,7 +388,7 @@ function AlertResultCard({ result, indexName }) {
   const Icon = config.icon;
 
   return (
-    <div className={`rounded-xl border-2 p-6 ${config.bgClass} w-[480px] min-h-[320px]`}>
+    <div className={`rounded-xl border-2 p-4 sm:p-6 ${config.bgClass} w-full min-h-[280px] sm:min-h-[320px]`}>
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <Icon className={`w-8 h-8 ${config.iconClass}`} />
@@ -409,7 +409,7 @@ function AlertResultCard({ result, indexName }) {
 
       {/* Index vs Security Comparison */}
       {result.found && (
-        <div className="mb-4 p-4 bg-white rounded-lg space-y-3 h-[140px]">
+        <div className="mb-4 p-3 sm:p-4 bg-white rounded-lg space-y-3">
           {/* Index Change (Market) */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600 flex items-center gap-2">
@@ -455,7 +455,7 @@ function AlertResultCard({ result, indexName }) {
 
       {/* No Data Case */}
       {!result.found && result.marketChange == null && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-gray-500 h-[60px]">
+        <div className="mb-4 p-3 sm:p-4 bg-gray-100 rounded-lg text-gray-500">
           No market data available for this date
         </div>
       )}
@@ -465,7 +465,7 @@ function AlertResultCard({ result, indexName }) {
 
       {/* Counter-Market Indicator */}
       {result.found && (
-        <div className="mt-4 pt-4 border-t border-gray-200 h-[40px]">
+        <div className="mt-4 pt-4 border-t border-gray-200">
           {result.isCounter ? (
             <div className="flex items-center gap-2 text-amber-700">
               <AlertTriangle className="w-5 h-5" />
@@ -529,7 +529,7 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
   const Icon = config.icon;
   
   return (
-    <div className={`rounded-xl border-2 p-5 ${config.bg} w-[480px] min-h-[520px]`}>
+    <div className={`rounded-xl border-2 p-4 sm:p-5 ${config.bg} w-full min-h-[480px] sm:min-h-[520px]`}>
       {/* Header with Traffic Light */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -549,7 +549,7 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
       </div>
       
       {/* Recommendation Badge */}
-      <div className={`mb-4 p-3 rounded-lg ${config.light} text-white h-[80px]`}>
+      <div className={`mb-4 p-3 rounded-lg ${config.light} text-white`}>
         <div className="flex items-center gap-2">
           <Icon className="w-5 h-5" />
           <span className="font-bold text-lg">{trafficLight.recommendation}</span>
@@ -558,7 +558,7 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
       </div>
       
       {/* Overall Sentiment Score */}
-      <div className="mb-4 p-3 bg-white rounded-lg h-[100px]">
+      <div className="mb-4 p-3 bg-white rounded-lg">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-gray-600">Institutional Sentiment</span>
           <span className={`text-lg font-bold ${
@@ -597,7 +597,7 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
             const level = getSentimentLevel(typeSentiment);
             
             return (
-              <div key={type} className="p-2 bg-white rounded border h-[60px]">
+              <div key={type} className="p-2 bg-white rounded border">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-700">{typeInfo?.name || type}</span>
                   <SentimentBadge sentiment={typeSentiment} />
@@ -614,7 +614,7 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
       </div>
       
       {/* Volume Info */}
-      <div className="mt-4 pt-3 border-t border-gray-200 grid grid-cols-2 gap-4 text-sm h-[60px]">
+      <div className="mt-4 pt-3 border-t border-gray-200 grid grid-cols-2 gap-4 text-sm">
         <div>
           <span className="text-gray-500">Total Buy Volume</span>
           <p className="font-mono text-green-600">₪{(sentimentData.smartMoneyBuy / 1000000).toFixed(2)}M</p>

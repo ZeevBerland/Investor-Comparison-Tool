@@ -1,6 +1,6 @@
 import { useDataStore } from '../hooks/useDataStore';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Target, BarChart3, Trophy, Users, Filter, Info, Activity, Zap, CheckCircle, XCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, BarChart3, Trophy, Users, Info, Activity, Zap, CheckCircle, XCircle } from 'lucide-react';
 import { CLIENT_TYPES, SMART_MONEY_TYPES } from '../lib/smartMoney';
 
 const COLORS = {
@@ -88,21 +88,6 @@ export default function Dashboard() {
                     <option key={id} value={id}>{getIndexName(id)}</option>
                   ))}
               </optgroup>
-            </select>
-          </div>
-          
-          {/* Trader Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-blue-500" />
-            <select
-              value={selectedTrader}
-              onChange={(e) => filterByTrader(e.target.value)}
-              className="px-3 py-2 border border-blue-300 rounded-lg bg-blue-50 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none min-w-[180px]"
-            >
-              <option value="all">All Traders ({traders.length})</option>
-              {traders.map(trader => (
-                <option key={trader} value={trader}>{trader}</option>
-              ))}
             </select>
           </div>
         </div>
@@ -219,7 +204,7 @@ export default function Dashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pie Chart */}
-        <div className="bg-white rounded-xl shadow-sm border p-6 h-[360px] min-w-[400px]">
+        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 h-[320px] sm:h-[360px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Distribution</h3>
           <div className="h-[256px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -255,7 +240,7 @@ export default function Dashboard() {
         </div>
 
         {/* Bar Chart */}
-        <div className="bg-white rounded-xl shadow-sm border p-6 h-[360px] min-w-[400px]">
+        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 h-[320px] sm:h-[360px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Counter-Market % by Action</h3>
           <div className="h-[256px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -310,7 +295,7 @@ export default function Dashboard() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {/* With Smart Money */}
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg h-[130px] min-w-[200px]">
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <span className="font-medium text-green-800">With Smart Money</span>
@@ -324,7 +309,7 @@ export default function Dashboard() {
             </div>
             
             {/* Against Smart Money */}
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg h-[130px] min-w-[200px]">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <XCircle className="w-5 h-5 text-red-600" />
                 <span className="font-medium text-red-800">Against Smart Money</span>
@@ -338,7 +323,7 @@ export default function Dashboard() {
             </div>
             
             {/* Neutral */}
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg h-[130px] min-w-[200px]">
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Activity className="w-5 h-5 text-gray-600" />
                 <span className="font-medium text-gray-800">Neutral Sentiment</span>
@@ -510,7 +495,7 @@ function MetricCard({ icon: Icon, label, value, subtext, color }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-5 h-[140px] w-full min-w-[200px]">
+    <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-5 w-full">
       <div className="flex items-center gap-3 mb-3">
         <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
           <Icon className="w-5 h-5" />
@@ -527,7 +512,7 @@ function ActionCard({ action, total, counterPct, description, color }) {
   const bgColor = color === 'blue' ? 'bg-blue-500' : 'bg-red-500';
   
   return (
-    <div className="border rounded-lg p-4 h-[140px] min-w-[280px]">
+    <div className="border rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <span className={`px-3 py-1 text-white text-sm font-medium rounded ${bgColor}`}>
           {action}

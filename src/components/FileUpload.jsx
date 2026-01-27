@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, TrendingUp, Users, Database } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, TrendingUp, Users, Database, Archive } from 'lucide-react';
 import { parseCSV, detectFileType } from '../lib/csvParser';
+import { extractAndParseZip } from '../lib/zipParser';
 import { useDataStore } from '../hooks/useDataStore';
 
 export default function FileUpload({ onComplete }) {
@@ -11,12 +12,72 @@ export default function FileUpload({ onComplete }) {
     smartMoneyRaw, securitiesData, securityToIsin
   } = useDataStore();
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Processing file...');
   const [error, setError] = useState(null);
   const [transactionFile, setTransactionFile] = useState(null);
   const [tradingFile, setTradingFile] = useState(null);
   const [indicesFile, setIndicesFile] = useState(null);
   const [securitiesFile, setSecuritiesFile] = useState(null);
   const [smartMoneyFile, setSmartMoneyFile] = useState(null);
+  const [zipFile, setZipFile] = useState(null);
+
+  // Handle ZIP file upload - extracts and loads all CSVs at once
+  const handleZipUpload = useCallback(async (file) => {
+    setLoading(true);
+    setLoadingMessage('Extracting ZIP archive...');
+    setError(null);
+
+    try {
+      const { data, fileInfo, missingRequired } = await extractAndParseZip(file);
+
+      // Check for missing required files
+      if (missingRequired.length > 0) {
+        setError(`Missing required files in ZIP: ${missingRequired.join(', ')}`);
+        setLoading(false);
+        return;
+      }
+
+      setLoadingMessage('Loading extracted data...');
+
+      // Load transactions
+      if (data.transactions) {
+        const count = loadTransactions(data.transactions);
+        setTransactionFile({ name: fileInfo.transactions.name, rows: count });
+      }
+
+      // Load trading data
+      if (data.trading) {
+        const count = loadTradingData(data.trading);
+        setTradingFile({ name: fileInfo.trading.name, rows: count });
+      }
+
+      // Load indices data
+      if (data.indices) {
+        const count = loadIndicesData(data.indices);
+        setIndicesFile({ name: fileInfo.indices.name, rows: count });
+      }
+
+      // Load securities mapping (optional)
+      if (data.securities) {
+        const count = loadSecuritiesData(data.securities);
+        setSecuritiesFile({ name: fileInfo.securities.name, rows: count });
+      }
+
+      // Load smart money data (optional) - must load after securities for mapping
+      if (data.smartmoney) {
+        const count = loadSmartMoneyData(data.smartmoney, securityToIsin);
+        setSmartMoneyFile({ name: fileInfo.smartmoney.name, rows: count });
+      }
+
+      setZipFile({ name: file.name });
+
+    } catch (err) {
+      setError(`Error processing ZIP file: ${err.message}`);
+    }
+
+    setLoading(false);
+    setLoadingMessage('Processing file...');
+  }, [loadTransactions, loadTradingData, loadIndicesData, loadSecuritiesData, loadSmartMoneyData, securityToIsin]);
 
   const handleFileUpload = useCallback(async (file, expectedType) => {
     setLoading(true);
@@ -72,11 +133,13 @@ export default function FileUpload({ onComplete }) {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files);
     files.forEach(file => {
-      if (file.name.endsWith('.csv')) {
+      if (file.name.endsWith('.zip')) {
+        handleZipUpload(file);
+      } else if (file.name.endsWith('.csv')) {
         handleFileUpload(file);
       }
     });
-  }, [handleFileUpload]);
+  }, [handleFileUpload, handleZipUpload]);
 
   const handleProcess = () => {
     const result = processData();
@@ -112,17 +175,44 @@ export default function FileUpload({ onComplete }) {
         {loading ? (
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-            <p className="text-gray-600">Processing file...</p>
+            <p className="text-gray-600">{loadingMessage}</p>
           </div>
         ) : (
           <>
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-lg text-gray-700 mb-2">
-              Drag & drop CSV files here
+              Drag & drop ZIP or CSV files here
             </p>
             <p className="text-sm text-gray-500 mb-4">
               or click the buttons below to select files
             </p>
+
+            {/* Prominent ZIP Upload Button */}
+            <label className="cursor-pointer block mb-6">
+              <input
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleZipUpload(file);
+                }}
+              />
+              <span className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg text-lg font-medium">
+                <Archive className="w-5 h-5" />
+                Upload ZIP Archive
+              </span>
+              <p className="text-xs text-gray-500 mt-2">Recommended: Load all files at once from menora_data.zip</p>
+            </label>
+
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">or upload individual files</span>
+              </div>
+            </div>
             
             <div className="flex flex-wrap gap-3 justify-center">
               <label className="cursor-pointer">
@@ -220,6 +310,17 @@ export default function FileUpload({ onComplete }) {
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <p className="text-red-700">{error}</p>
+        </div>
+      )}
+
+      {/* ZIP File Loaded Banner */}
+      {zipFile && (
+        <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center gap-3">
+          <Archive className="w-5 h-5 text-indigo-600" />
+          <div>
+            <p className="font-medium text-indigo-900">ZIP Archive Loaded</p>
+            <p className="text-sm text-indigo-700">{zipFile.name} - All files extracted successfully</p>
+          </div>
         </div>
       )}
 
