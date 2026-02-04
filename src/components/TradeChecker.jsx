@@ -20,6 +20,7 @@ export default function TradeChecker() {
   const [pattern, setPattern] = useState(null);
   const [securityInfo, setSecurityInfo] = useState(null);
   const [history, setHistory] = useState([]);
+  const [noDataFound, setNoDataFound] = useState(false);
 
   // Get unique ISINs for suggestions
   const availableIsins = useMemo(() => {
@@ -37,10 +38,12 @@ export default function TradeChecker() {
       setHistoricalContext(null);
       setPattern(null);
       setSecurityInfo(null);
+      setNoDataFound(false);
       return;
     }
 
     setIsChecking(true);
+    setNoDataFound(false);
     
     // Small delay for UI feedback
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -75,8 +78,10 @@ export default function TradeChecker() {
           patternStrength,
           alertLevel,
         });
+        setNoDataFound(false);
       } else {
         setHistoricalContext(null);
+        setNoDataFound(true);
       }
       
       // Add to history
@@ -95,6 +100,7 @@ export default function TradeChecker() {
       setSentimentData(null);
       setHistoricalContext(null);
       setPattern(null);
+      setNoDataFound(false);
     }
     
     setIsChecking(false);
@@ -102,6 +108,9 @@ export default function TradeChecker() {
 
   const handleIsinChange = (value) => {
     setIsin(value.toUpperCase());
+    if (noDataFound) {
+      setNoDataFound(false);
+    }
   };
 
   if (!processedData) {
@@ -246,6 +255,38 @@ export default function TradeChecker() {
                 historicalContext={historicalContext}
               />
             </>
+          ) : noDataFound ? (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-200 dark:border-amber-700 p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
+              <AlertCircle className="w-12 h-12 text-amber-500 dark:text-amber-400 mb-4" />
+              <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200 mb-2">
+                No Data Available
+              </h3>
+              <p className="text-amber-700 dark:text-amber-300 mb-4">
+                No institutional trading data found for this ISIN on the selected date.
+              </p>
+              <div className="text-sm text-amber-600 dark:text-amber-400 space-y-2 text-left max-w-md">
+                <p className="flex items-start gap-2">
+                  <span className="font-semibold">•</span>
+                  <span>The ISIN may not exist in your dataset</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="font-semibold">•</span>
+                  <span>There may be no smart money activity for this security on {currentDate}</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="font-semibold">•</span>
+                  <span>Try checking a different date or verify the ISIN code</span>
+                </p>
+              </div>
+              {securityInfo && (
+                <div className="mt-4 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-200 dark:border-amber-700">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Security found: <strong className="text-gray-900 dark:text-white">{securityInfo.symbol}</strong>
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">{securityInfo.companyName}</p>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
               <Search className="w-12 h-12 text-gray-400 mb-4" />
