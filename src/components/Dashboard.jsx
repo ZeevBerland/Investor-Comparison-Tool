@@ -71,7 +71,8 @@ export default function Dashboard() {
         consensus,
       };
       
-      if (!sentiment) {
+      // Check both if sentiment exists AND has valid data
+      if (!sentiment || sentiment.smartMoneySentiment === null) {
         noData.push(item);
         continue;
       }

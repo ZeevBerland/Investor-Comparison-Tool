@@ -62,7 +62,10 @@ export default function TradeChecker() {
       setPattern(patternData);
       
       // Fetch historical context for pattern outcomes
-      if (sentiment) {
+      // Check if sentiment exists AND has actual data (smartMoneySentiment is not null)
+      const hasValidSentiment = sentiment && sentiment.smartMoneySentiment !== null;
+      
+      if (hasValidSentiment) {
         const historyData = getSmartMoneyHistory ? getSmartMoneyHistory(cleanIsin, currentDate, 10) : [];
         const patternOutcomes = getPatternOutcomes ? getPatternOutcomes(cleanIsin, sentiment.smartMoneySentiment, 5) : null;
         const trend = calculateSentimentTrend(sentiment.smartMoneySentiment, historyData, 5);
@@ -80,12 +83,13 @@ export default function TradeChecker() {
         });
         setNoDataFound(false);
       } else {
+        setSentimentData(null); // Clear sentiment data if no valid sentiment
         setHistoricalContext(null);
         setNoDataFound(true);
       }
       
-      // Add to history
-      if (sentiment) {
+      // Add to history only if there's valid sentiment data
+      if (hasValidSentiment) {
         setHistory(prev => [{
           isin: cleanIsin,
           symbol: secInfo?.symbol || cleanIsin.substring(0, 8),
