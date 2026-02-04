@@ -5,17 +5,17 @@
 
 // Client type definitions
 export const CLIENT_TYPES = {
-  F: { id: 'F', name: 'Pension/Insurance', description: 'קרן פנסיה/קופת גמל/חברת ביטוח', isSmartMoney: true },
-  M: { id: 'M', name: 'Mutual Funds', description: 'משקיע מוסדי מסוג קרן נאמנות', isSmartMoney: true },
-  N: { id: 'N', name: 'Nostro', description: 'נוסטרו', isSmartMoney: true },
-  P: { id: 'P', name: 'Portfolio Managers', description: 'מנהל תיקים/לקוח מנוהל', isSmartMoney: true },
-  O: { id: 'O', name: 'Foreign Investors', description: 'תושב חוץ', isSmartMoney: true },
-  D: { id: 'D', name: 'Foreign Individual', description: 'תושב חוץ - יחיד', isSmartMoney: false },
-  G: { id: 'G', name: 'Foreign Other', description: 'תושב חוץ - אחר', isSmartMoney: false },
-  E: { id: 'E', name: 'ETF/Market Maker', description: 'קרן סל/עושה שוק', isSmartMoney: false },
-  Z: { id: 'Z', name: 'Israeli Retail', description: 'משקיע ישראלי', isSmartMoney: false },
-  A: { id: 'A', name: 'Israeli Individual', description: 'תושב ישראל - יחיד', isSmartMoney: false },
-  B: { id: 'B', name: 'Israeli Corporate', description: 'תושב ישראל - תאגיד', isSmartMoney: false },
+  F: { id: 'F', name: 'Pension/Insurance', shortName: 'Pension', description: 'קרן פנסיה/קופת גמל/חברת ביטוח', isSmartMoney: true },
+  M: { id: 'M', name: 'Mutual Funds', shortName: 'Mutual', description: 'משקיע מוסדי מסוג קרן נאמנות', isSmartMoney: true },
+  N: { id: 'N', name: 'Nostro', shortName: 'Nostro', description: 'נוסטרו', isSmartMoney: true },
+  P: { id: 'P', name: 'Portfolio Managers', shortName: 'Portfolio', description: 'מנהל תיקים/לקוח מנוהל', isSmartMoney: true },
+  O: { id: 'O', name: 'Foreign Investors', shortName: 'Foreign', description: 'תושב חוץ', isSmartMoney: true },
+  D: { id: 'D', name: 'Foreign Individual', shortName: 'Fgn Indiv', description: 'תושב חוץ - יחיד', isSmartMoney: false },
+  G: { id: 'G', name: 'Foreign Other', shortName: 'Fgn Other', description: 'תושב חוץ - אחר', isSmartMoney: false },
+  E: { id: 'E', name: 'ETF/Market Maker', shortName: 'ETF/MM', description: 'קרן סל/עושה שוק', isSmartMoney: false },
+  Z: { id: 'Z', name: 'Israeli Retail', shortName: 'IL Retail', description: 'משקיע ישראלי', isSmartMoney: false },
+  A: { id: 'A', name: 'Israeli Individual', shortName: 'IL Indiv', description: 'תושב ישראל - יחיד', isSmartMoney: false },
+  B: { id: 'B', name: 'Israeli Corporate', shortName: 'IL Corp', description: 'תושב ישראל - תאגיד', isSmartMoney: false },
 };
 
 // Smart money types (institutional investors)
@@ -499,4 +499,339 @@ export function buildIsinToSecurityMap(securitiesData) {
   }
   
   return map;
+}
+
+// ============================================================================
+// NEW FUNCTIONS BASED ON EDA FINDINGS
+// ============================================================================
+
+/**
+ * Calculate consensus score across client types
+ * EDA Finding: When multiple client types agree, signals are more reliable
+ * @param {object} typeSentiments - Object mapping client type to sentiment
+ * @returns {object} - Consensus analysis
+ */
+export function calculateConsensusScore(typeSentiments) {
+  if (!typeSentiments) {
+    return {
+      bullishCount: 0,
+      bearishCount: 0,
+      neutralCount: 0,
+      totalTypes: 0,
+      consensusLevel: 'UNKNOWN',
+      dominantDirection: 'UNKNOWN',
+      agreementRatio: 0,
+    };
+  }
+  
+  let bullish = 0;
+  let bearish = 0;
+  let neutral = 0;
+  
+  for (const type of SMART_MONEY_TYPES) {
+    const sentiment = typeSentiments[type];
+    if (sentiment === undefined) continue;
+    
+    if (sentiment > 0.1) {
+      bullish++;
+    } else if (sentiment < -0.1) {
+      bearish++;
+    } else {
+      neutral++;
+    }
+  }
+  
+  const totalTypes = bullish + bearish + neutral;
+  const maxAgreement = Math.max(bullish, bearish, neutral);
+  
+  // Determine consensus level
+  let consensusLevel = 'WEAK';
+  if (maxAgreement >= 5) {
+    consensusLevel = 'UNANIMOUS';
+  } else if (maxAgreement >= 4) {
+    consensusLevel = 'STRONG';
+  } else if (maxAgreement >= 3) {
+    consensusLevel = 'MODERATE';
+  }
+  
+  // Determine dominant direction
+  let dominantDirection = 'MIXED';
+  if (bullish > bearish && bullish > neutral) {
+    dominantDirection = 'BULLISH';
+  } else if (bearish > bullish && bearish > neutral) {
+    dominantDirection = 'BEARISH';
+  } else if (neutral > bullish && neutral > bearish) {
+    dominantDirection = 'NEUTRAL';
+  }
+  
+  return {
+    bullishCount: bullish,
+    bearishCount: bearish,
+    neutralCount: neutral,
+    totalTypes,
+    consensusLevel,
+    dominantDirection,
+    agreementRatio: totalTypes > 0 ? maxAgreement / totalTypes : 0,
+  };
+}
+
+/**
+ * Calculate sentiment trend (change vs recent average)
+ * EDA Finding: Sentiment change over time may be more predictive than absolute values
+ * @param {number} currentSentiment - Current day's sentiment
+ * @param {Array} historicalData - Array of historical sentiment data
+ * @param {number} lookbackDays - Number of days to average
+ * @returns {object} - Trend analysis
+ */
+export function calculateSentimentTrend(currentSentiment, historicalData, lookbackDays = 5) {
+  if (!historicalData || historicalData.length === 0) {
+    return {
+      trend: 'UNKNOWN',
+      delta: 0,
+      avgSentiment: 0,
+      currentSentiment: currentSentiment || 0,
+      momentum: 'UNKNOWN',
+    };
+  }
+  
+  // Get the most recent N days (excluding today if it's in the data)
+  const recentData = historicalData.slice(-lookbackDays);
+  
+  if (recentData.length === 0) {
+    return {
+      trend: 'UNKNOWN',
+      delta: 0,
+      avgSentiment: 0,
+      currentSentiment: currentSentiment || 0,
+      momentum: 'UNKNOWN',
+    };
+  }
+  
+  // Calculate average sentiment over lookback period
+  const avgSentiment = recentData.reduce((sum, d) => {
+    const sent = d.smartMoneySentiment ?? d.sentiment ?? 0;
+    return sum + sent;
+  }, 0) / recentData.length;
+  
+  const delta = (currentSentiment || 0) - avgSentiment;
+  
+  // Determine trend direction
+  let trend = 'STABLE';
+  let momentum = 'NEUTRAL';
+  
+  if (delta > 0.15) {
+    trend = 'IMPROVING';
+    momentum = 'ACCELERATING_BULLISH';
+  } else if (delta > 0.05) {
+    trend = 'SLIGHTLY_IMPROVING';
+    momentum = 'BULLISH';
+  } else if (delta < -0.15) {
+    trend = 'DETERIORATING';
+    momentum = 'ACCELERATING_BEARISH';
+  } else if (delta < -0.05) {
+    trend = 'SLIGHTLY_DETERIORATING';
+    momentum = 'BEARISH';
+  }
+  
+  return {
+    trend,
+    delta,
+    avgSentiment,
+    currentSentiment: currentSentiment || 0,
+    momentum,
+    lookbackDays: recentData.length,
+  };
+}
+
+/**
+ * Calculate pattern strength score (0-100)
+ * EDA Finding: Consecutive selling + volume spikes are more predictive than raw sentiment
+ * @param {object} pattern - Pattern detection result from detectSellingPattern()
+ * @param {number} sentiment - Current sentiment value
+ * @returns {object} - Pattern strength analysis
+ */
+export function calculatePatternStrength(pattern, sentiment) {
+  let score = 0;
+  const factors = [];
+  
+  if (!pattern) {
+    return {
+      score: 0,
+      level: 'NONE',
+      factors: [],
+      description: 'No pattern data available',
+    };
+  }
+  
+  // Consecutive selling contributes up to 50 points
+  const consecutiveSells = pattern.consecutiveSellDays || 0;
+  if (consecutiveSells >= 5) {
+    score += 50;
+    factors.push({ name: 'Extended selling streak', points: 50, detail: `${consecutiveSells} consecutive days` });
+  } else if (consecutiveSells >= 3) {
+    score += 30;
+    factors.push({ name: 'Selling streak', points: 30, detail: `${consecutiveSells} consecutive days` });
+  } else if (consecutiveSells >= 2) {
+    score += 15;
+    factors.push({ name: 'Short selling streak', points: 15, detail: `${consecutiveSells} consecutive days` });
+  }
+  
+  // Volume spike adds up to 25 points
+  if (pattern.hasVolumeSpike) {
+    const volumeRatio = pattern.latestVolume / Math.max(pattern.avgVolume, 1);
+    if (volumeRatio >= 3) {
+      score += 25;
+      factors.push({ name: 'Major volume spike', points: 25, detail: `${volumeRatio.toFixed(1)}x average` });
+    } else {
+      score += 15;
+      factors.push({ name: 'Volume spike', points: 15, detail: `${volumeRatio.toFixed(1)}x average` });
+    }
+  }
+  
+  // Strong negative sentiment adds up to 25 points
+  if (sentiment !== undefined && sentiment !== null) {
+    if (sentiment <= -0.7) {
+      score += 25;
+      factors.push({ name: 'Strong selling pressure', points: 25, detail: `${(sentiment * 100).toFixed(0)}% sentiment` });
+    } else if (sentiment <= -0.5) {
+      score += 20;
+      factors.push({ name: 'Heavy selling', points: 20, detail: `${(sentiment * 100).toFixed(0)}% sentiment` });
+    } else if (sentiment <= -0.3) {
+      score += 10;
+      factors.push({ name: 'Moderate selling', points: 10, detail: `${(sentiment * 100).toFixed(0)}% sentiment` });
+    }
+  }
+  
+  // Cap at 100
+  score = Math.min(score, 100);
+  
+  // Determine level
+  let level = 'LOW';
+  let description = 'Minimal concern';
+  
+  if (score >= 70) {
+    level = 'CRITICAL';
+    description = 'Multiple strong warning signals detected';
+  } else if (score >= 50) {
+    level = 'HIGH';
+    description = 'Significant selling pressure patterns';
+  } else if (score >= 30) {
+    level = 'MODERATE';
+    description = 'Some warning signals present';
+  } else if (score > 0) {
+    level = 'LOW';
+    description = 'Minor signals, monitor closely';
+  } else {
+    level = 'NONE';
+    description = 'No concerning patterns detected';
+  }
+  
+  return {
+    score,
+    level,
+    factors,
+    description,
+  };
+}
+
+/**
+ * Get enhanced alert level based on EDA findings
+ * EDA Finding: Combining multiple signals produces better alerts than single-metric thresholds
+ * @param {number} sentiment - Smart money sentiment (-1 to 1)
+ * @param {object} pattern - Pattern detection result
+ * @returns {object} - Enhanced alert with level and reason
+ */
+export function getEnhancedAlertLevel(sentiment, pattern) {
+  const consecutiveSells = pattern?.consecutiveSellDays || 0;
+  const hasVolumeSpike = pattern?.hasVolumeSpike || false;
+  
+  // HIGH (RED): Strong negative sentiment + pattern confirmation
+  // EDA showed 3+ consecutive selling days elevate decline probability
+  if (sentiment < -0.5 && consecutiveSells >= 3) {
+    return {
+      level: 'HIGH',
+      color: 'RED',
+      reason: 'Strong selling sentiment with sustained selling pattern',
+      action: 'Consider hedging or exit',
+      confidence: 'HIGH',
+    };
+  }
+  
+  // HIGH: Extreme negative sentiment even without pattern
+  if (sentiment < -0.7) {
+    return {
+      level: 'HIGH',
+      color: 'RED',
+      reason: 'Extreme institutional selling pressure',
+      action: 'Review position urgently',
+      confidence: 'MODERATE',
+    };
+  }
+  
+  // MEDIUM (YELLOW): Either moderate negative OR selling pattern
+  if (sentiment < -0.3 || consecutiveSells >= 2) {
+    const reasons = [];
+    if (sentiment < -0.3) reasons.push('Moderate selling sentiment');
+    if (consecutiveSells >= 2) reasons.push(`${consecutiveSells} consecutive sell days`);
+    if (hasVolumeSpike) reasons.push('Volume spike detected');
+    
+    return {
+      level: 'MEDIUM',
+      color: 'YELLOW',
+      reason: reasons.join('; '),
+      action: 'Monitor closely',
+      confidence: 'MODERATE',
+    };
+  }
+  
+  // BULLISH (TEAL): Strong positive with volume confirmation
+  // EDA showed volume spike + bullish = 50.4% win rate (above baseline)
+  if (sentiment > 0.5 && hasVolumeSpike) {
+    return {
+      level: 'BULLISH',
+      color: 'TEAL',
+      reason: 'Strong institutional buying with volume confirmation',
+      action: 'Potential opportunity',
+      confidence: 'MODERATE',
+    };
+  }
+  
+  // LOW (BLUE): Slightly negative
+  if (sentiment < -0.1) {
+    return {
+      level: 'LOW',
+      color: 'BLUE',
+      reason: 'Slight institutional selling bias',
+      action: 'Normal monitoring',
+      confidence: 'LOW',
+    };
+  }
+  
+  // NONE (GREEN): Neutral or positive
+  return {
+    level: 'NONE',
+    color: 'GREEN',
+    reason: 'No concerning signals',
+    action: 'Continue holding',
+    confidence: 'LOW',
+  };
+}
+
+/**
+ * Get confidence level based on sample size
+ * Used for historical pattern analysis
+ * @param {number} sampleSize - Number of historical patterns found
+ * @returns {object} - Confidence assessment
+ */
+export function getConfidenceLevel(sampleSize) {
+  if (sampleSize >= 50) {
+    return { level: 'HIGH', label: 'High Confidence', color: 'green' };
+  }
+  if (sampleSize >= 20) {
+    return { level: 'MEDIUM', label: 'Moderate Confidence', color: 'yellow' };
+  }
+  if (sampleSize >= 5) {
+    return { level: 'LOW', label: 'Low Confidence', color: 'orange' };
+  }
+  return { level: 'INSUFFICIENT', label: 'Insufficient Data', color: 'gray' };
 }

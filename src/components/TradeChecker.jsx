@@ -1,23 +1,25 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, AlertTriangle, CheckCircle, Info, AlertCircle, TrendingUp, TrendingDown, Activity, Users, Zap, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Search, AlertTriangle, CheckCircle, Info, AlertCircle, TrendingUp, TrendingDown, Activity, Users, Zap, ThumbsUp, ThumbsDown, Minus, History, BarChart2, Clock } from 'lucide-react';
 import { useDataStore } from '../hooks/useDataStore';
-import { checkTradeWithIndex } from '../lib/alerts';
-import { getAlertBgColor } from '../lib/analysis';
-import { getTrafficLight, getSentimentLevel, CLIENT_TYPES, SMART_MONEY_TYPES } from '../lib/smartMoney';
+import { getTrafficLight, getSentimentLevel, CLIENT_TYPES, SMART_MONEY_TYPES, calculateConsensusScore, calculateSentimentTrend, getConfidenceLevel, calculatePatternStrength, getEnhancedAlertLevel } from '../lib/smartMoney';
+import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
+import LoadingSpinner, { ButtonSpinner } from './LoadingSpinner';
 
 export default function TradeChecker() {
   const { 
-    tradingData, indicesData, processedData, availableIndices, selectedIndex, commonIndices, getIndexName, changeIndex,
-    smartMoneyLoaded, getSmartMoneySentiment, isinToSecurity,
+    tradingData, processedData,
+    smartMoneyLoaded, getSmartMoneySentiment, getSmartMoneyHistory, getPatternOutcomes, 
+    detectSmartMoneyPattern, isinToSecurity,
     sessionDate
   } = useDataStore();
   const [isin, setIsin] = useState('');
   const [action, setAction] = useState('buy');
-  const [date, setDate] = useState(sessionDate || '');
-  const [result, setResult] = useState(null);
+  const [isChecking, setIsChecking] = useState(false);
   const [sentimentData, setSentimentData] = useState(null);
+  const [historicalContext, setHistoricalContext] = useState(null);
+  const [pattern, setPattern] = useState(null);
+  const [securityInfo, setSecurityInfo] = useState(null);
   const [history, setHistory] = useState([]);
-  const [lastCheckedIndex, setLastCheckedIndex] = useState(null);
 
   // Get unique ISINs for suggestions
   const availableIsins = useMemo(() => {
@@ -26,69 +28,77 @@ export default function TradeChecker() {
     return Array.from(isins).sort();
   }, [tradingData]);
 
-  // Get date range - limited by session date
-  const dateRange = useMemo(() => {
-    if (!tradingData || tradingData.length === 0) return { min: '', max: '' };
-    const dates = tradingData
-      .map(row => row.tradeDate.split('T')[0].split(' ')[0])
-      .sort();
-    // Use session date as max if available, otherwise use the last date in data
-    const maxDate = sessionDate || dates[dates.length - 1];
-    return { min: dates[0], max: maxDate };
-  }, [tradingData, sessionDate]);
+  // Use session date (simulated present day)
+  const currentDate = sessionDate || '';
 
-  const runCheck = useCallback((indexToUse) => {
-    if (!isin || !date) {
-      return null;
-    }
-    return checkTradeWithIndex(isin, action, date, tradingData, indicesData, indexToUse);
-  }, [isin, action, date, tradingData, indicesData]);
-
-  const handleCheck = () => {
-    if (!isin || !date) {
-      setResult({
-        found: false,
-        message: 'Please enter ISIN and date',
-        alertLevel: 'NONE',
-      });
+  const handleCheck = async () => {
+    if (!isin || !currentDate) {
       setSentimentData(null);
+      setHistoricalContext(null);
+      setPattern(null);
+      setSecurityInfo(null);
       return;
     }
 
-    const checkResult = runCheck(selectedIndex);
-    setResult(checkResult);
-    setLastCheckedIndex(selectedIndex);
+    setIsChecking(true);
+    
+    // Small delay for UI feedback
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const cleanIsin = isin.toUpperCase().trim();
+    const secInfo = isinToSecurity.get(cleanIsin);
+    setSecurityInfo(secInfo);
     
     // Fetch smart money sentiment data
     if (smartMoneyLoaded) {
-      const sentiment = getSmartMoneySentiment(isin, date);
+      const sentiment = getSmartMoneySentiment(cleanIsin, currentDate);
       setSentimentData(sentiment);
+      
+      // Fetch pattern data
+      const patternData = detectSmartMoneyPattern(cleanIsin, currentDate, 10);
+      setPattern(patternData);
+      
+      // Fetch historical context for pattern outcomes
+      if (sentiment) {
+        const historyData = getSmartMoneyHistory ? getSmartMoneyHistory(cleanIsin, currentDate, 10) : [];
+        const patternOutcomes = getPatternOutcomes ? getPatternOutcomes(cleanIsin, sentiment.smartMoneySentiment, 5) : null;
+        const trend = calculateSentimentTrend(sentiment.smartMoneySentiment, historyData, 5);
+        const consensus = calculateConsensusScore(sentiment.typeSentiments);
+        const patternStrength = calculatePatternStrength(patternData, sentiment.smartMoneySentiment);
+        const alertLevel = getEnhancedAlertLevel(sentiment.smartMoneySentiment, patternData);
+        
+        setHistoricalContext({
+          patternOutcomes,
+          trend,
+          consensus,
+          historyLength: historyData.length,
+          patternStrength,
+          alertLevel,
+        });
+      } else {
+        setHistoricalContext(null);
+      }
+      
+      // Add to history
+      if (sentiment) {
+        setHistory(prev => [{
+          isin: cleanIsin,
+          symbol: secInfo?.symbol || cleanIsin.substring(0, 8),
+          action,
+          date: currentDate,
+          timestamp: new Date().toLocaleTimeString(),
+          smartMoneySentiment: sentiment.smartMoneySentiment,
+          trafficLight: getTrafficLight(action === 'buy', sentiment.smartMoneySentiment),
+        }, ...prev.slice(0, 9)]);
+      }
     } else {
       setSentimentData(null);
+      setHistoricalContext(null);
+      setPattern(null);
     }
     
-    // Add to history
-    if (checkResult) {
-      const sentiment = smartMoneyLoaded ? getSmartMoneySentiment(isin, date) : null;
-      setHistory(prev => [{
-        ...checkResult,
-        indexUsed: getIndexName(selectedIndex),
-        timestamp: new Date().toLocaleTimeString(),
-        smartMoneySentiment: sentiment?.smartMoneySentiment,
-      }, ...prev.slice(0, 9)]);
-    }
+    setIsChecking(false);
   };
-
-  // Auto-update result when index changes (if we have a previous check)
-  useEffect(() => {
-    if (result && isin && date && selectedIndex !== lastCheckedIndex) {
-      const checkResult = runCheck(selectedIndex);
-      if (checkResult) {
-        setResult(checkResult);
-        setLastCheckedIndex(selectedIndex);
-      }
-    }
-  }, [selectedIndex, result, isin, date, lastCheckedIndex, runCheck]);
 
   const handleIsinChange = (value) => {
     setIsin(value.toUpperCase());
@@ -102,45 +112,42 @@ export default function TradeChecker() {
     );
   }
 
+  if (!smartMoneyLoaded) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 max-w-lg mx-auto">
+          <Zap className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-amber-800 mb-2">Smart Money Data Required</h3>
+          <p className="text-amber-700">
+            Please upload the Smart Money EOD and Securities Mapping files to enable trade checking.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header with Index Selector */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Trade Checker</h2>
           <p className="text-gray-600 mt-1">
-            Check if a proposed trade is counter to market direction
+            Check institutional sentiment before executing a trade
           </p>
         </div>
         
-        {/* Index Selector */}
-        <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-amber-500" />
-          <select
-            value={selectedIndex}
-            onChange={(e) => changeIndex(e.target.value)}
-            className="px-3 py-2 border border-amber-300 rounded-lg bg-amber-50 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
-          >
-            {availableIndices
-              .filter(id => commonIndices[id])
-              .map(id => (
-                <option key={id} value={id}>{commonIndices[id]}</option>
-              ))}
-            <optgroup label="Other Indices">
-              {availableIndices
-                .filter(id => !commonIndices[id])
-                .slice(0, 50)
-                .map(id => (
-                  <option key={id} value={id}>{getIndexName(id)}</option>
-                ))}
-            </optgroup>
-          </select>
-        </div>
+        {sessionDate && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-700">Session: <strong>{sessionDate}</strong></span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Form */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 h-auto lg:h-[420px]">
+        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Details</h3>
           
           <div className="space-y-4">
@@ -198,78 +205,69 @@ export default function TradeChecker() {
               </div>
             </div>
 
-            {/* Date Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Trade Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                min={dateRange.min}
-                max={dateRange.max}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-              {dateRange.min && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Available: {dateRange.min} to {dateRange.max}
-                </p>
-              )}
-            </div>
+            {/* Current Date Display */}
+            {currentDate && (
+              <div className="text-xs text-gray-500 text-center py-2 bg-gray-50 rounded-lg">
+                Analysis Date: <span className="font-medium text-gray-700">{currentDate}</span>
+              </div>
+            )}
 
             {/* Check Button */}
             <button
               onClick={handleCheck}
-              className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              disabled={isChecking || !isin}
+              className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Search className="w-5 h-5" />
-              Check Trade
+              {isChecking ? (
+                <>
+                  <ButtonSpinner />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Search className="w-5 h-5" />
+                  Check Smart Money Sentiment
+                </>
+              )}
             </button>
           </div>
         </div>
 
         {/* Result Card */}
         <div className="space-y-4">
-          {result ? (
+          {sentimentData ? (
             <>
-              <AlertResultCard result={result} indexName={getIndexName(selectedIndex)} />
-              
               {/* Smart Money Sentiment Panel */}
-              {sentimentData && (
-                <SmartMoneySentimentCard 
-                  sentimentData={sentimentData} 
-                  isBuy={action === 'buy'}
-                  securityInfo={isinToSecurity.get(isin.toUpperCase())}
-                />
-              )}
-              
-              {/* No Smart Money Data Notice */}
-              {!sentimentData && smartMoneyLoaded && (
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="text-sm text-gray-500 flex items-center gap-2">
-                    <Info className="w-4 h-4" />
-                    No smart money data available for this security on this date
-                  </p>
-                </div>
-              )}
+              <SmartMoneySentimentCard 
+                sentimentData={sentimentData} 
+                isBuy={action === 'buy'}
+                securityInfo={securityInfo}
+                pattern={pattern}
+                historicalContext={historicalContext}
+              />
             </>
           ) : (
-            <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-8 text-center h-full flex flex-col items-center justify-center">
+            <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
               <Search className="w-12 h-12 text-gray-400 mb-4" />
               <p className="text-gray-500">
-                Enter trade details and click "Check Trade" to see the alert
+                Enter trade details and click "Check" to see smart money sentiment
               </p>
-              {smartMoneyLoaded && (
-                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                  <Zap className="w-3 h-3" />
-                  Smart money sentiment analysis enabled
-                </p>
-              )}
+              <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                Smart money sentiment analysis enabled
+              </p>
             </div>
           )}
         </div>
       </div>
+      
+      {/* Historical Context Panel */}
+      {historicalContext && (
+        <HistoricalContextPanel 
+          context={historicalContext}
+          sentiment={sentimentData?.smartMoneySentiment}
+        />
+      )}
 
       {/* History */}
       {history.length > 0 && (
@@ -291,11 +289,8 @@ export default function TradeChecker() {
                   <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Time</th>
                   <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Symbol</th>
                   <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Action</th>
-                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Index</th>
-                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Idx Chg</th>
-                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Sec Chg</th>
-                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Smart $</th>
-                  <th className="text-center py-2 px-3 text-sm font-medium text-gray-600">Alert</th>
+                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Sentiment</th>
+                  <th className="text-center py-2 px-3 text-sm font-medium text-gray-600">Signal</th>
                 </tr>
               </thead>
               <tbody>
@@ -310,25 +305,6 @@ export default function TradeChecker() {
                         {item.action.toUpperCase()}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-xs text-amber-600">{item.indexUsed || 'N/A'}</td>
-                    <td className="py-2 px-3 text-sm text-right font-mono">
-                      {item.marketChange != null ? (
-                        <span className={item.marketChange >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {item.marketChange >= 0 ? '+' : ''}{item.marketChange?.toFixed(2)}%
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">N/A</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-sm text-right font-mono">
-                      {item.securityChange != null ? (
-                        <span className={item.securityChange >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {item.securityChange >= 0 ? '+' : ''}{item.securityChange?.toFixed(2)}%
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">N/A</span>
-                      )}
-                    </td>
                     <td className="py-2 px-3 text-sm text-right font-mono">
                       {item.smartMoneySentiment != null ? (
                         <span className={item.smartMoneySentiment >= 0 ? 'text-green-600' : 'text-red-600'}>
@@ -339,7 +315,7 @@ export default function TradeChecker() {
                       )}
                     </td>
                     <td className="py-2 px-3 text-center">
-                      <AlertBadge level={item.alertLevel} />
+                      <TrafficLightMini color={item.trafficLight?.color} />
                     </td>
                   </tr>
                 ))}
@@ -352,156 +328,26 @@ export default function TradeChecker() {
   );
 }
 
-function AlertResultCard({ result, indexName }) {
-  const alertConfig = {
-    HIGH: {
-      icon: AlertTriangle,
-      title: 'HIGH ALERT',
-      bgClass: 'bg-red-50 border-red-200',
-      iconClass: 'text-red-500',
-      titleClass: 'text-red-700',
-    },
-    MEDIUM: {
-      icon: AlertCircle,
-      title: 'MEDIUM ALERT',
-      bgClass: 'bg-yellow-50 border-yellow-200',
-      iconClass: 'text-yellow-500',
-      titleClass: 'text-yellow-700',
-    },
-    LOW: {
-      icon: Info,
-      title: 'LOW ALERT',
-      bgClass: 'bg-blue-50 border-blue-200',
-      iconClass: 'text-blue-500',
-      titleClass: 'text-blue-700',
-    },
-    NONE: {
-      icon: CheckCircle,
-      title: 'NO ALERT',
-      bgClass: 'bg-green-50 border-green-200',
-      iconClass: 'text-green-500',
-      titleClass: 'text-green-700',
-    },
+function TrafficLightMini({ color }) {
+  const colorClasses = {
+    GREEN: 'bg-green-500',
+    YELLOW: 'bg-yellow-500',
+    RED: 'bg-red-500',
   };
-
-  const config = alertConfig[result.alertLevel] || alertConfig.NONE;
-  const Icon = config.icon;
-
+  
   return (
-    <div className={`rounded-xl border-2 p-4 sm:p-6 ${config.bgClass} w-full min-h-[280px] sm:min-h-[320px]`}>
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <Icon className={`w-8 h-8 ${config.iconClass}`} />
-        <h3 className={`text-xl font-bold ${config.titleClass}`}>{config.title}</h3>
-      </div>
-
-      {/* Symbol & ISIN */}
-      <div className="flex items-center gap-4 mb-4 text-gray-600">
-        <div>
-          <span className="text-sm">Symbol:</span>
-          <span className="ml-2 font-semibold text-gray-900">{result.symbol}</span>
-        </div>
-        <div>
-          <span className="text-sm">ISIN:</span>
-          <span className="ml-2 font-mono text-gray-700">{result.isin}</span>
-        </div>
-      </div>
-
-      {/* Index vs Security Comparison */}
-      {result.found && (
-        <div className="mb-4 p-3 sm:p-4 bg-white rounded-lg space-y-3">
-          {/* Index Change (Market) */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-amber-500" />
-              {indexName || 'Index'} Change:
-            </span>
-            <span className={`text-xl font-bold ${
-              result.marketChange >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {result.marketChange != null 
-                ? `${result.marketChange >= 0 ? '+' : ''}${result.marketChange.toFixed(2)}%`
-                : 'N/A'}
-            </span>
-          </div>
-          
-          {/* Security Change (Individual Stock) */}
-          <div className="flex items-center justify-between border-t pt-3">
-            <span className="text-sm text-gray-600 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-500" />
-              Security Change:
-            </span>
-            <span className={`text-lg font-semibold ${
-              result.securityChange != null
-                ? (result.securityChange >= 0 ? 'text-green-600' : 'text-red-600')
-                : 'text-gray-400'
-            }`}>
-              {result.securityChange != null 
-                ? `${result.securityChange >= 0 ? '+' : ''}${result.securityChange.toFixed(2)}%`
-                : 'N/A'}
-            </span>
-          </div>
-
-          {/* Comparison Insight */}
-          {result.marketChange != null && result.securityChange != null && (
-            <div className="text-xs text-gray-500 border-t pt-2">
-              {Math.abs(result.securityChange) > Math.abs(result.marketChange) 
-                ? `Security moved ${(Math.abs(result.securityChange) - Math.abs(result.marketChange)).toFixed(2)}% more than index`
-                : `Security moved ${(Math.abs(result.marketChange) - Math.abs(result.securityChange)).toFixed(2)}% less than index`}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* No Data Case */}
-      {!result.found && result.marketChange == null && (
-        <div className="mb-4 p-3 sm:p-4 bg-gray-100 rounded-lg text-gray-500">
-          No market data available for this date
-        </div>
-      )}
-
-      {/* Message */}
-      <p className="text-gray-700">{result.message}</p>
-
-      {/* Counter-Market Indicator */}
-      {result.found && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          {result.isCounter ? (
-            <div className="flex items-center gap-2 text-amber-700">
-              <AlertTriangle className="w-5 h-5" />
-              <span className="font-medium">COUNTER-MARKET TRADE</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-green-700">
-              <CheckCircle className="w-5 h-5" />
-              <span className="font-medium">ALIGNED WITH MARKET</span>
-            </div>
-          )}
-        </div>
-      )}
+    <div className="flex justify-center gap-1">
+      <div className={`w-3 h-3 rounded-full ${color === 'RED' ? 'bg-red-500' : 'bg-red-200'}`} />
+      <div className={`w-3 h-3 rounded-full ${color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200'}`} />
+      <div className={`w-3 h-3 rounded-full ${color === 'GREEN' ? 'bg-green-500' : 'bg-green-200'}`} />
     </div>
-  );
-}
-
-function AlertBadge({ level }) {
-  const classes = {
-    HIGH: 'bg-red-500 text-white',
-    MEDIUM: 'bg-yellow-500 text-white',
-    LOW: 'bg-blue-500 text-white',
-    NONE: 'bg-green-500 text-white',
-  };
-
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${classes[level] || classes.NONE}`}>
-      {level}
-    </span>
   );
 }
 
 /**
  * Smart Money Sentiment Card with Traffic Light
  */
-function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
+function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, historicalContext }) {
   const trafficLight = getTrafficLight(isBuy, sentimentData.smartMoneySentiment);
   
   const trafficColors = {
@@ -529,12 +375,16 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
   const Icon = config.icon;
   
   return (
-    <div className={`rounded-xl border-2 p-4 sm:p-5 ${config.bg} w-full min-h-[480px] sm:min-h-[520px]`}>
-      {/* Header with Traffic Light */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Users className="w-5 h-5 text-gray-600" />
-          <h4 className="font-semibold text-gray-900">Smart Money Sentiment</h4>
+    <div className={`rounded-xl border-2 p-4 sm:p-5 ${config.bg} w-full`}>
+      {/* Header with Security Info */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          {securityInfo && (
+            <>
+              <h4 className="text-lg font-bold text-gray-900">{securityInfo.symbol}</h4>
+              <p className="text-sm text-gray-600">{securityInfo.companyName}</p>
+            </>
+          )}
         </div>
         
         {/* Traffic Light */}
@@ -545,6 +395,9 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
             <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200'}`} />
           </div>
           <span className={`font-bold ${config.text}`}>{trafficLight.label}</span>
+          <InfoTooltip title={METRIC_EXPLANATIONS.trafficLight.title} position="left">
+            {METRIC_EXPLANATIONS.trafficLight.description}
+          </InfoTooltip>
         </div>
       </div>
       
@@ -557,10 +410,34 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
         <p className="text-sm mt-1 opacity-90">{trafficLight.message}</p>
       </div>
       
+      {/* Alert Level from EDA */}
+      {historicalContext?.alertLevel && (
+        <div className={`mb-4 p-3 rounded-lg text-sm ${
+          historicalContext.alertLevel.level === 'HIGH' ? 'bg-red-100 text-red-800' :
+          historicalContext.alertLevel.level === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+          historicalContext.alertLevel.level === 'BULLISH' ? 'bg-teal-100 text-teal-800' :
+          'bg-gray-100 text-gray-700'
+        }`}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="font-medium">{historicalContext.alertLevel.level} Signal</span>
+          </div>
+          <p className="mt-1">{historicalContext.alertLevel.reason}</p>
+          {historicalContext.alertLevel.action && (
+            <p className="mt-1 font-medium">Recommended: {historicalContext.alertLevel.action}</p>
+          )}
+        </div>
+      )}
+      
       {/* Overall Sentiment Score */}
       <div className="mb-4 p-3 bg-white rounded-lg">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-600">Institutional Sentiment</span>
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-gray-600">Institutional Sentiment</span>
+            <InfoTooltip title={METRIC_EXPLANATIONS.sentiment.title} position="bottom">
+              {METRIC_EXPLANATIONS.sentiment.description}
+            </InfoTooltip>
+          </div>
           <span className={`text-lg font-bold ${
             sentimentData.smartMoneySentiment >= 0 ? 'text-green-600' : 'text-red-600'
           }`}>
@@ -585,10 +462,60 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
         </div>
       </div>
       
+      {/* Pattern Strength Score */}
+      {historicalContext?.patternStrength && historicalContext.patternStrength.score > 0 && (
+        <div className="mb-4 p-3 bg-white rounded-lg border border-amber-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium text-gray-700">Pattern Strength</span>
+              <InfoTooltip title={METRIC_EXPLANATIONS.patternStrength.title} position="bottom">
+                {METRIC_EXPLANATIONS.patternStrength.description}
+              </InfoTooltip>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded text-xs font-bold text-white ${
+                historicalContext.patternStrength.level === 'CRITICAL' ? 'bg-red-600' :
+                historicalContext.patternStrength.level === 'HIGH' ? 'bg-orange-500' :
+                historicalContext.patternStrength.level === 'MODERATE' ? 'bg-yellow-500' :
+                'bg-gray-400'
+              }`}>
+                {historicalContext.patternStrength.score}
+              </span>
+              <span className="text-sm text-gray-600">{historicalContext.patternStrength.level}</span>
+            </div>
+          </div>
+          <p className="text-xs text-amber-700 mt-2">{historicalContext.patternStrength.description}</p>
+        </div>
+      )}
+      
+      {/* Pattern Flags */}
+      {pattern?.flagged && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {pattern.consecutiveSellDays >= 2 && (
+            <div className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium flex items-center gap-1">
+              <TrendingDown className="w-3 h-3" />
+              {pattern.consecutiveSellDays} consecutive sell days
+              <InfoTooltip title={METRIC_EXPLANATIONS.consecutiveSells.title} position="bottom">
+                {METRIC_EXPLANATIONS.consecutiveSells.description}
+              </InfoTooltip>
+            </div>
+          )}
+          {pattern.hasVolumeSpike && (
+            <div className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium flex items-center gap-1">
+              <Activity className="w-3 h-3" />
+              Volume spike ({(pattern.latestVolume / pattern.avgVolume).toFixed(1)}x avg)
+              <InfoTooltip title={METRIC_EXPLANATIONS.volumeSpike.title} position="bottom">
+                {METRIC_EXPLANATIONS.volumeSpike.description}
+              </InfoTooltip>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Breakdown by Investor Type */}
       <div className="space-y-2">
         <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">By Investor Type</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {SMART_MONEY_TYPES.map(type => {
             const typeSentiment = sentimentData.typeSentiments?.[type];
             if (typeSentiment === undefined) return null;
@@ -597,15 +524,15 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
             const level = getSentimentLevel(typeSentiment);
             
             return (
-              <div key={type} className="p-2 bg-white rounded border">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-700">{typeInfo?.name || type}</span>
-                  <SentimentBadge sentiment={typeSentiment} />
+              <div key={type} className="p-2 bg-white rounded border min-w-0" title={typeInfo?.name}>
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-xs font-medium text-gray-700">{typeInfo?.shortName || type}</span>
                 </div>
-                <div className="text-right text-sm font-mono mt-1">
-                  <span className={typeSentiment >= 0 ? 'text-green-600' : 'text-red-600'}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-base font-bold font-mono ${typeSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {typeSentiment >= 0 ? '+' : ''}{(typeSentiment * 100).toFixed(0)}%
                   </span>
+                  <SentimentBadge sentiment={typeSentiment} />
                 </div>
               </div>
             );
@@ -623,6 +550,160 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo }) {
           <span className="text-gray-500">Total Sell Volume</span>
           <p className="font-mono text-red-600">₪{(sentimentData.smartMoneySell / 1000000).toFixed(2)}M</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Historical Context Panel - Shows pattern outcomes based on EDA findings
+ */
+function HistoricalContextPanel({ context, sentiment }) {
+  if (!context) return null;
+  
+  const { patternOutcomes, trend, consensus } = context;
+  const confidence = patternOutcomes ? getConfidenceLevel(patternOutcomes.totalPatterns) : null;
+  
+  return (
+    <div className="bg-amber-50 rounded-xl border-2 border-amber-200 p-4 sm:p-5">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <History className="w-5 h-5 text-amber-600" />
+        <h4 className="font-semibold text-amber-900">Historical Context</h4>
+        <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">EDA-Powered</span>
+        <InfoTooltip title="Historical Context" position="right">
+          Analysis based on historical patterns from the smart money EDA. Shows what happened in the past when sentiment was at similar levels, helping predict likely outcomes.
+        </InfoTooltip>
+      </div>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {/* Pattern Outcomes */}
+        {patternOutcomes && patternOutcomes.totalPatterns > 0 && (
+          <div className="p-3 sm:p-4 bg-white rounded-lg border border-amber-200">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-medium text-gray-700">Similar Patterns</span>
+                <InfoTooltip title={METRIC_EXPLANATIONS.similarPatterns.title} position="bottom">
+                  {METRIC_EXPLANATIONS.similarPatterns.description}
+                </InfoTooltip>
+              </div>
+              {confidence && (
+                <span className={`text-xs px-2 py-0.5 rounded ${
+                  confidence.level === 'HIGH' ? 'bg-green-100 text-green-700' :
+                  confidence.level === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {confidence.label}
+                </span>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">Occurrences</span>
+                <span className="text-base sm:text-lg font-bold text-amber-700">{patternOutcomes.totalPatterns}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">Led to Decline</span>
+                  <InfoTooltip title={METRIC_EXPLANATIONS.declineRate.title} position="left">
+                    {METRIC_EXPLANATIONS.declineRate.description}
+                  </InfoTooltip>
+                </div>
+                <span className={`text-base sm:text-lg font-bold ${patternOutcomes.declineRate > 50 ? 'text-red-600' : 'text-green-600'}`}>
+                  {patternOutcomes.declineRate.toFixed(0)}%
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">Avg 5d Return</span>
+                  <InfoTooltip title={METRIC_EXPLANATIONS.avgReturn.title} position="left">
+                    {METRIC_EXPLANATIONS.avgReturn.description}
+                  </InfoTooltip>
+                </div>
+                <span className={`text-base sm:text-lg font-bold ${patternOutcomes.avgChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {patternOutcomes.avgChange >= 0 ? '+' : ''}{patternOutcomes.avgChange.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Sentiment Trend */}
+        {trend && trend.trend !== 'UNKNOWN' && (
+          <div className="p-3 sm:p-4 bg-white rounded-lg border border-amber-200">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium text-gray-700">Sentiment Trend</span>
+              <InfoTooltip title={METRIC_EXPLANATIONS.sentimentTrend.title} position="bottom">
+                {METRIC_EXPLANATIONS.sentimentTrend.description}
+              </InfoTooltip>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              {trend.trend === 'IMPROVING' || trend.trend === 'SLIGHTLY_IMPROVING' ? (
+                <TrendingUp className="w-5 h-5 text-green-500" />
+              ) : trend.trend === 'DETERIORATING' || trend.trend === 'SLIGHTLY_DETERIORATING' ? (
+                <TrendingDown className="w-5 h-5 text-red-500" />
+              ) : (
+                <Activity className="w-5 h-5 text-gray-400" />
+              )}
+              <span className={`text-base sm:text-lg font-bold ${
+                trend.trend.includes('IMPROVING') ? 'text-green-600' :
+                trend.trend.includes('DETERIORATING') ? 'text-red-600' : 'text-gray-600'
+              }`}>
+                {trend.trend.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Delta vs {trend.lookbackDays || 5}-day avg: {trend.delta >= 0 ? '+' : ''}{(trend.delta * 100).toFixed(1)}%
+            </p>
+          </div>
+        )}
+        
+        {/* Consensus Indicator */}
+        {consensus && consensus.totalTypes > 0 && (
+          <div className="p-3 sm:p-4 bg-white rounded-lg border border-amber-200">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-medium text-gray-700">Client Consensus</span>
+                <InfoTooltip title={METRIC_EXPLANATIONS.consensus.title} position="bottom">
+                  {METRIC_EXPLANATIONS.consensus.description}
+                </InfoTooltip>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                consensus.consensusLevel === 'UNANIMOUS' ? 'bg-purple-100 text-purple-700' :
+                consensus.consensusLevel === 'STRONG' ? 'bg-green-100 text-green-700' :
+                consensus.consensusLevel === 'MODERATE' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-gray-100 text-gray-600'
+              }`}>
+                {consensus.consensusLevel}
+              </span>
+            </div>
+            
+            {/* Visual dots showing agreement */}
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex gap-1">
+                {[...Array(5)].map((_, i) => {
+                  let dotColor = 'bg-gray-200';
+                  if (i < consensus.bullishCount) dotColor = 'bg-green-500';
+                  else if (i < consensus.bullishCount + consensus.bearishCount) dotColor = 'bg-red-500';
+                  else if (i < consensus.totalTypes) dotColor = 'bg-gray-400';
+                  return <div key={i} className={`w-3 h-3 rounded-full ${dotColor}`} />;
+                })}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              {consensus.bullishCount} bullish, {consensus.bearishCount} bearish, {consensus.neutralCount} neutral
+            </p>
+            
+            <p className="text-xs text-amber-700 mt-2">
+              {consensus.consensusLevel === 'STRONG' || consensus.consensusLevel === 'UNANIMOUS'
+                ? 'Strong agreement - signal is more reliable.'
+                : consensus.consensusLevel === 'MODERATE'
+                  ? 'Moderate agreement - some support.'
+                  : 'Weak consensus - investors divided.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

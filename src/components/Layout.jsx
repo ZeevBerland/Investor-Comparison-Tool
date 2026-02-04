@@ -1,10 +1,9 @@
-import { BarChart3, Search, Activity, LogOut, RotateCcw, User, Calendar } from 'lucide-react';
+import { BarChart3, Search, LogOut, RotateCcw, User, Calendar } from 'lucide-react';
 import { useDataStore } from '../hooks/useDataStore';
 
 const tabs = [
   { id: 'dashboard', label: 'Dashboard', labelFull: 'Dashboard', icon: BarChart3 },
   { id: 'checker', label: 'Checker', labelFull: 'Trade Checker', icon: Search },
-  { id: 'monitor', label: 'Monitor', labelFull: 'Portfolio Monitor', icon: Activity },
 ];
 
 export default function Layout({ children, activeTab, setActiveTab, appPhase, onLogout, onReset }) {

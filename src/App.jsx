@@ -5,7 +5,6 @@ import FileUpload from './components/FileUpload';
 import TraderSelection from './components/TraderSelection';
 import Dashboard from './components/Dashboard';
 import TradeChecker from './components/TradeChecker';
-import PortfolioMonitor from './components/PortfolioMonitor';
 
 // Inner component that has access to DataProvider context
 function AppContent() {
@@ -54,7 +53,6 @@ function AppContent() {
         <>
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'checker' && <TradeChecker />}
-          {activeTab === 'monitor' && <PortfolioMonitor />}
         </>
       )}
     </Layout>

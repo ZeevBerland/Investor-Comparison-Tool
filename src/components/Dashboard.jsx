@@ -1,24 +1,139 @@
+import { useState, useMemo, useEffect } from 'react';
 import { useDataStore } from '../hooks/useDataStore';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Target, BarChart3, Trophy, Users, Info, Activity, Zap, CheckCircle, XCircle } from 'lucide-react';
-import { CLIENT_TYPES, SMART_MONEY_TYPES } from '../lib/smartMoney';
+import { TrendingUp, TrendingDown, Target, BarChart3, Users, Info, Activity, Zap, CheckCircle, XCircle, AlertTriangle, AlertCircle, Shield, Clock, Eye } from 'lucide-react';
+import { CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAlertLevel, calculatePatternStrength, calculateConsensusScore, getSentimentLevel } from '../lib/smartMoney';
+import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
 
 const COLORS = {
-  counter: '#F59E0B',
-  aligned: '#10B981',
-  buy: '#3B82F6',
-  sell: '#EF4444',
+  bullish: '#10B981',
+  bearish: '#EF4444',
+  neutral: '#6B7280',
+  high: '#DC2626',
+  medium: '#F59E0B',
+  teal: '#14B8A6',
+  green: '#22C55E',
 };
 
 export default function Dashboard() {
   const { 
     processedData, traders, selectedTrader, filterByTrader, 
-    availableIndices, selectedIndex, commonIndices, getIndexName, changeIndex,
-    smartMoneyLoaded, getHistoricalPerformance
+    smartMoneyLoaded, getHistoricalPerformance, getSmartMoneySentiment,
+    detectSmartMoneyPattern, getPatternOutcomes, isinToSecurity, sessionDate
   } = useDataStore();
   
   // Calculate historical performance if smart money data is loaded
   const historicalPerf = smartMoneyLoaded ? getHistoricalPerformance(5) : null;
+
+  // Portfolio-wide smart money analysis
+  const portfolioAnalysis = useMemo(() => {
+    if (!smartMoneyLoaded || !processedData?.traderPortfolios) return null;
+    
+    const currentTrader = selectedTrader === 'all' ? Object.keys(processedData.traderPortfolios)[0] : selectedTrader;
+    const portfolio = processedData.traderPortfolios[currentTrader] || [];
+    
+    if (portfolio.length === 0) return null;
+    
+    const redAlerts = [];
+    const yellowAlerts = [];
+    const tealAlerts = [];
+    const greenPositions = [];
+    const noData = [];
+    
+    let totalSentiment = 0;
+    let sentimentCount = 0;
+    const clientTypeTotals = {};
+    SMART_MONEY_TYPES.forEach(t => clientTypeTotals[t] = { total: 0, count: 0 });
+    
+    for (const isin of portfolio) {
+      const sentiment = getSmartMoneySentiment(isin, sessionDate);
+      const secInfo = isinToSecurity.get(isin.toUpperCase());
+      const pattern = detectSmartMoneyPattern(isin, sessionDate, 10);
+      const patternOutcomes = sentiment?.smartMoneySentiment < -0.3 
+        ? getPatternOutcomes(isin, sentiment.smartMoneySentiment, 5) 
+        : null;
+      const patternStrength = calculatePatternStrength(pattern, sentiment?.smartMoneySentiment);
+      const consensus = sentiment?.typeSentiments 
+        ? calculateConsensusScore(sentiment.typeSentiments)
+        : null;
+      
+      const item = {
+        isin,
+        symbol: secInfo?.symbol || isin.substring(0, 8),
+        companyName: secInfo?.companyName,
+        sentiment: sentiment?.smartMoneySentiment,
+        typeSentiments: sentiment?.typeSentiments,
+        buyVolume: sentiment?.smartMoneyBuy,
+        sellVolume: sentiment?.smartMoneySell,
+        pattern,
+        patternOutcomes,
+        patternStrength,
+        consensus,
+      };
+      
+      if (!sentiment) {
+        noData.push(item);
+        continue;
+      }
+      
+      // Accumulate for averages
+      totalSentiment += sentiment.smartMoneySentiment;
+      sentimentCount++;
+      
+      // Accumulate client type sentiments
+      if (sentiment.typeSentiments) {
+        SMART_MONEY_TYPES.forEach(type => {
+          if (sentiment.typeSentiments[type] !== undefined) {
+            clientTypeTotals[type].total += sentiment.typeSentiments[type];
+            clientTypeTotals[type].count++;
+          }
+        });
+      }
+      
+      // Categorize by alert level
+      const enhancedAlert = getEnhancedAlertLevel(sentiment.smartMoneySentiment, pattern);
+      item.alertLevel = enhancedAlert.level;
+      item.alertReason = enhancedAlert.reason;
+      item.alertAction = enhancedAlert.action;
+      
+      if (enhancedAlert.level === 'HIGH') {
+        redAlerts.push(item);
+      } else if (enhancedAlert.level === 'MEDIUM') {
+        yellowAlerts.push(item);
+      } else if (enhancedAlert.level === 'BULLISH') {
+        tealAlerts.push(item);
+      } else {
+        greenPositions.push(item);
+      }
+    }
+    
+    // Sort by sentiment/strength
+    redAlerts.sort((a, b) => (a.sentiment || 0) - (b.sentiment || 0));
+    yellowAlerts.sort((a, b) => (a.sentiment || 0) - (b.sentiment || 0));
+    tealAlerts.sort((a, b) => (b.sentiment || 0) - (a.sentiment || 0));
+    
+    // Calculate client type averages
+    const clientTypeAvg = {};
+    SMART_MONEY_TYPES.forEach(type => {
+      if (clientTypeTotals[type].count > 0) {
+        clientTypeAvg[type] = clientTypeTotals[type].total / clientTypeTotals[type].count;
+      }
+    });
+    
+    return {
+      totalSecurities: portfolio.length,
+      withData: sentimentCount,
+      avgSentiment: sentimentCount > 0 ? totalSentiment / sentimentCount : 0,
+      redAlerts,
+      yellowAlerts,
+      tealAlerts,
+      greenPositions,
+      noData,
+      clientTypeAvg,
+      patternAlerts: redAlerts.filter(a => a.pattern?.flagged).length + 
+                     yellowAlerts.filter(a => a.pattern?.flagged).length,
+    };
+  }, [smartMoneyLoaded, processedData, selectedTrader, sessionDate, getSmartMoneySentiment, detectSmartMoneyPattern, getPatternOutcomes, isinToSecurity]);
 
   if (!processedData) {
     return (
@@ -28,269 +143,246 @@ export default function Dashboard() {
     );
   }
 
+  if (!smartMoneyLoaded) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 max-w-lg mx-auto">
+          <Zap className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-amber-800 mb-2">Smart Money Data Required</h3>
+          <p className="text-amber-700">
+            Please upload the Smart Money EOD and Securities Mapping files to enable the dashboard.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const { stats, traderStats } = processedData;
-
-  // Prepare chart data
-  const pieData = [
-    { name: 'Counter-Market', value: stats.counterCount, color: COLORS.counter },
-    { name: 'Aligned', value: stats.alignedCount, color: COLORS.aligned },
-  ];
-
-  const barData = [
-    { 
-      name: 'Buy Trades', 
-      counter: stats.buyCounterPct, 
-      aligned: 100 - stats.buyCounterPct,
-      total: stats.buyTrades,
-    },
-    { 
-      name: 'Sell Trades', 
-      counter: stats.sellCounterPct, 
-      aligned: 100 - stats.sellCounterPct,
-      total: stats.sellTrades,
-    },
-  ];
-
-  // Determine winner (simplified - in real app would use return data)
-  const winner = stats.contrarianRatio > 50 ? 'COUNTER' : 'ALIGNED';
 
   return (
     <div className="space-y-6">
-      {/* Header with Filters */}
+      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Retrospective Dashboard</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Smart Money Dashboard</h2>
           <p className="text-gray-600 mt-1">
-            Analysis of trading behavior compared to market direction
+            Institutional trading activity and sentiment analysis
           </p>
         </div>
         
-        {/* Filters Row */}
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Index Selector */}
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-amber-500" />
-            <select
-              value={selectedIndex}
-              onChange={(e) => changeIndex(e.target.value)}
-              className="px-3 py-2 border border-amber-300 rounded-lg bg-amber-50 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
-            >
-              {availableIndices
-                .filter(id => commonIndices[id])
-                .map(id => (
-                  <option key={id} value={id}>{commonIndices[id]}</option>
-                ))}
-              <optgroup label="Other Indices">
-                {availableIndices
-                  .filter(id => !commonIndices[id])
-                  .slice(0, 50)
-                  .map(id => (
-                    <option key={id} value={id}>{getIndexName(id)}</option>
-                  ))}
-              </optgroup>
-            </select>
+        {sessionDate && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-700">Analysis Date: <strong>{sessionDate}</strong></span>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Data Source Indicator */}
-      {stats.hasIndexData && (
-        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <Info className="w-5 h-5 text-amber-600" />
-          <p className="text-sm text-amber-800">
-            Using <strong>{stats.indexName}</strong> index for counter-market analysis
-          </p>
+      {/* Alert Summary Bar */}
+      {portfolioAnalysis && (
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-gray-600" />
+              <span className="font-semibold text-gray-900">Alert Summary</span>
+            </div>
+            <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3">
+              <AlertBadge 
+                count={portfolioAnalysis.redAlerts.length} 
+                label="HIGH" 
+                color="red" 
+                icon={AlertTriangle}
+                explanation={METRIC_EXPLANATIONS.alertHigh}
+              />
+              <AlertBadge 
+                count={portfolioAnalysis.yellowAlerts.length} 
+                label="MEDIUM" 
+                color="yellow" 
+                icon={AlertCircle}
+                explanation={METRIC_EXPLANATIONS.alertMedium}
+              />
+              <AlertBadge 
+                count={portfolioAnalysis.tealAlerts.length} 
+                label="BULLISH" 
+                color="teal" 
+                icon={TrendingUp}
+                explanation={METRIC_EXPLANATIONS.alertBullish}
+              />
+              <AlertBadge 
+                count={portfolioAnalysis.greenPositions.length} 
+                label="CLEAR" 
+                color="green" 
+                icon={CheckCircle}
+                explanation={METRIC_EXPLANATIONS.alertClear}
+              />
+            </div>
+          </div>
         </div>
       )}
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard
-          icon={BarChart3}
-          label="Total Transactions"
-          value={stats.totalTransactions.toLocaleString()}
-          subtext={`${stats.withMarketData.toLocaleString()} with market data`}
-          color="blue"
-        />
-        <MetricCard
-          icon={Target}
-          label="Contrarian Ratio"
-          value={`${stats.contrarianRatio.toFixed(1)}%`}
-          subtext={`${stats.counterCount.toLocaleString()} counter-market trades`}
-          color="amber"
-        />
-        <MetricCard
-          icon={TrendingUp}
-          label="Buy Trades"
-          value={stats.buyTrades.toLocaleString()}
-          subtext={`${stats.buyCounterPct.toFixed(1)}% counter-market`}
-          color="green"
-        />
-        <MetricCard
-          icon={TrendingDown}
-          label="Sell Trades"
-          value={stats.sellTrades.toLocaleString()}
-          subtext={`${stats.sellCounterPct.toFixed(1)}% counter-market`}
-          color="red"
-        />
-      </div>
-
-      {/* Winner Analysis Card */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Trophy className="w-6 h-6 text-yellow-500" />
-          <h3 className="text-lg font-semibold text-gray-900">Winner Analysis</h3>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Strategy</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-600">Trades</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-600">Percentage</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-600">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b hover:bg-gray-50">
-                <td className="py-3 px-4">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-                    Counter-Market
-                  </span>
-                </td>
-                <td className="text-right py-3 px-4 font-mono">{stats.counterCount.toLocaleString()}</td>
-                <td className="text-right py-3 px-4 font-mono">{stats.contrarianRatio.toFixed(1)}%</td>
-                <td className="text-center py-3 px-4">
-                  {winner === 'COUNTER' ? (
-                    <span className="text-xs font-medium px-2 py-1 bg-amber-100 text-amber-700 rounded">
-                      More Frequent
-                    </span>
-                  ) : null}
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="py-3 px-4">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                    Aligned with Market
-                  </span>
-                </td>
-                <td className="text-right py-3 px-4 font-mono">{stats.alignedCount.toLocaleString()}</td>
-                <td className="text-right py-3 px-4 font-mono">{(100 - stats.contrarianRatio).toFixed(1)}%</td>
-                <td className="text-center py-3 px-4">
-                  {winner === 'ALIGNED' ? (
-                    <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded">
-                      More Frequent
-                    </span>
-                  ) : null}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>Insight:</strong> You trade counter to market direction {stats.contrarianRatio.toFixed(1)}% of the time.
-            {stats.contrarianRatio > 50 
-              ? ' This suggests a contrarian trading style.'
-              : ' This suggests you tend to follow market momentum.'}
-          </p>
-        </div>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pie Chart */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 h-[320px] sm:h-[360px]">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Distribution</h3>
-          <div className="h-[256px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="45%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value) => [value.toLocaleString(), 'Trades']}
-                />
-                <Legend 
-                  verticalAlign="bottom"
-                  formatter={(value, entry) => {
-                    const item = pieData.find(d => d.name === value);
-                    const total = pieData.reduce((sum, d) => sum + d.value, 0);
-                    const pct = item ? ((item.value / total) * 100).toFixed(0) : 0;
-                    return `${value}: ${pct}%`;
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Bar Chart */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 h-[320px] sm:h-[360px]">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Counter-Market % by Action</h3>
-          <div className="h-[256px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} layout="vertical">
-                <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="name" width={80} />
-                <Tooltip 
-                  formatter={(value) => [`${value.toFixed(1)}%`]}
-                />
-                <Legend />
-                <Bar dataKey="counter" name="Counter-Market" fill={COLORS.counter} stackId="a" />
-                <Bar dataKey="aligned" name="Aligned" fill={COLORS.aligned} stackId="a" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Action Breakdown */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Action Breakdown</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ActionCard
-            action="BUY"
-            total={stats.buyTrades}
-            counterPct={stats.buyCounterPct}
-            description="When you buy, the market is down"
+      {portfolioAnalysis && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            icon={BarChart3}
+            label="Securities Tracked"
+            value={portfolioAnalysis.totalSecurities.toString()}
+            subtext={`${portfolioAnalysis.withData} with sentiment data`}
             color="blue"
+            explanation={METRIC_EXPLANATIONS.securitiesTracked}
           />
-          <ActionCard
-            action="SELL"
-            total={stats.sellTrades}
-            counterPct={stats.sellCounterPct}
-            description="When you sell, the market is up"
+          <MetricCard
+            icon={Activity}
+            label="Portfolio Sentiment"
+            value={`${portfolioAnalysis.avgSentiment >= 0 ? '+' : ''}${(portfolioAnalysis.avgSentiment * 100).toFixed(1)}%`}
+            subtext={portfolioAnalysis.avgSentiment >= 0.1 ? 'Bullish bias' : portfolioAnalysis.avgSentiment <= -0.1 ? 'Bearish bias' : 'Neutral'}
+            color={portfolioAnalysis.avgSentiment >= 0 ? 'green' : 'red'}
+            explanation={METRIC_EXPLANATIONS.portfolioSentiment}
+          />
+          <MetricCard
+            icon={AlertTriangle}
+            label="Pattern Alerts"
+            value={portfolioAnalysis.patternAlerts.toString()}
+            subtext="Selling patterns detected"
+            color="amber"
+            explanation={METRIC_EXPLANATIONS.patternAlerts}
+          />
+          <MetricCard
+            icon={Users}
+            label="High Alerts"
+            value={portfolioAnalysis.redAlerts.length.toString()}
+            subtext="Require attention"
             color="red"
+            explanation={METRIC_EXPLANATIONS.highAlerts}
           />
         </div>
-      </div>
+      )}
+
+      {/* Critical Alerts & Bullish Signals Row */}
+      {portfolioAnalysis && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Critical Alerts Panel */}
+          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+            <div className="p-4 bg-red-50 border-b border-red-200">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <h3 className="font-semibold text-red-800">Critical Alerts</h3>
+                <span className="ml-auto text-sm text-red-600">{portfolioAnalysis.redAlerts.length} positions</span>
+              </div>
+            </div>
+            <div className="p-4 max-h-[300px] overflow-y-auto">
+              {portfolioAnalysis.redAlerts.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No critical alerts - portfolio looks healthy</p>
+              ) : (
+                <div className="space-y-3">
+                  {portfolioAnalysis.redAlerts.slice(0, 5).map((item, idx) => (
+                    <AlertItem key={idx} item={item} type="red" />
+                  ))}
+                  {portfolioAnalysis.redAlerts.length > 5 && (
+                    <p className="text-xs text-gray-500 text-center pt-2">
+                      +{portfolioAnalysis.redAlerts.length - 5} more alerts
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bullish Signals Panel */}
+          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+            <div className="p-4 bg-teal-50 border-b border-teal-200">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-teal-600" />
+                <h3 className="font-semibold text-teal-800">Bullish Signals</h3>
+                <span className="ml-auto text-sm text-teal-600">{portfolioAnalysis.tealAlerts.length} positions</span>
+              </div>
+            </div>
+            <div className="p-4 max-h-[300px] overflow-y-auto">
+              {portfolioAnalysis.tealAlerts.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No strong bullish signals detected</p>
+              ) : (
+                <div className="space-y-3">
+                  {portfolioAnalysis.tealAlerts.slice(0, 5).map((item, idx) => (
+                    <AlertItem key={idx} item={item} type="teal" />
+                  ))}
+                  {portfolioAnalysis.tealAlerts.length > 5 && (
+                    <p className="text-xs text-gray-500 text-center pt-2">
+                      +{portfolioAnalysis.tealAlerts.length - 5} more bullish signals
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Client Type Sentiment Breakdown */}
+      {portfolioAnalysis && Object.keys(portfolioAnalysis.clientTypeAvg).length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Users className="w-6 h-6 text-purple-500" />
+            <h3 className="text-lg font-semibold text-gray-900">Client Type Sentiment Overview</h3>
+            <InfoTooltip title="Client Type Sentiment" position="right">
+              Shows average sentiment for each of the 5 institutional investor types (F, M, N, P, O) across all securities in your portfolio. Different investor types may have different time horizons and trading motivations.
+            </InfoTooltip>
+          </div>
+          
+          <p className="text-sm text-gray-600 mb-4">
+            Average sentiment by institutional investor type across your portfolio
+          </p>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {SMART_MONEY_TYPES.map(type => {
+              const avgSentiment = portfolioAnalysis.clientTypeAvg[type];
+              if (avgSentiment === undefined) return null;
+              
+              const typeInfo = CLIENT_TYPES[type];
+              const typeExplanation = METRIC_EXPLANATIONS[`clientType${type}`];
+              
+              return (
+                <div key={type} className={`p-3 sm:p-4 rounded-lg border-2 ${
+                  avgSentiment >= 0.1 ? 'bg-green-50 border-green-200' :
+                  avgSentiment <= -0.1 ? 'bg-red-50 border-red-200' :
+                  'bg-gray-50 border-gray-200'
+                }`} title={typeInfo?.name}>
+                  <div className="flex items-center gap-1 mb-1">
+                    <p className="text-xs text-gray-500">{typeInfo?.shortName || type}</p>
+                    {typeExplanation && (
+                      <InfoTooltip title={typeExplanation.title} position="bottom">
+                        {typeExplanation.description}
+                      </InfoTooltip>
+                    )}
+                  </div>
+                  <p className={`text-xl sm:text-2xl font-bold ${
+                    avgSentiment >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {avgSentiment >= 0 ? '+' : ''}{(avgSentiment * 100).toFixed(0)}%
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {avgSentiment >= 0.3 ? 'Buying' : avgSentiment <= -0.3 ? 'Selling' : 'Neutral'}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Smart Money Performance Analysis */}
       {historicalPerf && (historicalPerf.withSmartMoney.trades > 0 || historicalPerf.againstSmartMoney.trades > 0) && (
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <div className="flex items-center gap-3 mb-4">
             <Zap className="w-6 h-6 text-purple-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Smart Money Alignment Analysis</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Historical Win Rate Analysis</h3>
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">5-day outcomes</span>
+            <InfoTooltip title="Win Rate Analysis" position="right">
+              Compares your historical trading performance when aligned with vs against institutional sentiment. Win = trade was profitable after 5 trading days. Based on actual trades in your transaction history.
+            </InfoTooltip>
           </div>
           
           <p className="text-sm text-gray-600 mb-4">
-            Historical win rate when your trades aligned with or opposed institutional sentiment
+            Your historical win rate when trading with or against institutional sentiment
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -299,6 +391,9 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <span className="font-medium text-green-800">With Smart Money</span>
+                <InfoTooltip title={METRIC_EXPLANATIONS.winRateWith.title} position="bottom">
+                  {METRIC_EXPLANATIONS.winRateWith.description}
+                </InfoTooltip>
               </div>
               <p className="text-3xl font-bold text-green-700">
                 {historicalPerf.withSmartMoney.winRate.toFixed(0)}%
@@ -313,6 +408,9 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 mb-2">
                 <XCircle className="w-5 h-5 text-red-600" />
                 <span className="font-medium text-red-800">Against Smart Money</span>
+                <InfoTooltip title={METRIC_EXPLANATIONS.winRateAgainst.title} position="bottom">
+                  {METRIC_EXPLANATIONS.winRateAgainst.description}
+                </InfoTooltip>
               </div>
               <p className="text-3xl font-bold text-red-700">
                 {historicalPerf.againstSmartMoney.winRate.toFixed(0)}%
@@ -327,6 +425,9 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 mb-2">
                 <Activity className="w-5 h-5 text-gray-600" />
                 <span className="font-medium text-gray-800">Neutral Sentiment</span>
+                <InfoTooltip title="Neutral Sentiment" position="bottom">
+                  Trades executed when institutional sentiment was near zero (between -30% and +30%). Neither strongly aligned nor against smart money.
+                </InfoTooltip>
               </div>
               <p className="text-3xl font-bold text-gray-700">
                 {historicalPerf.neutral.winRate.toFixed(0)}%
@@ -414,12 +515,91 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Per-Trader Comparison */}
+      {/* Pattern Detection Summary */}
+      {portfolioAnalysis && (portfolioAnalysis.redAlerts.some(a => a.pattern?.flagged) || portfolioAnalysis.yellowAlerts.some(a => a.pattern?.flagged)) && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Eye className="w-6 h-6 text-amber-500" />
+            <h3 className="text-lg font-semibold text-gray-900">Active Selling Patterns</h3>
+            <InfoTooltip title="Active Selling Patterns" position="right">
+              Securities with detected institutional selling patterns. EDA analysis found that consecutive selling days (3+) and volume spikes correlate with increased probability of price decline within 5 trading days.
+            </InfoTooltip>
+          </div>
+          
+          <p className="text-sm text-gray-600 mb-4">
+            Securities showing consecutive institutional selling or volume spikes
+          </p>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Security</th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-600">Consecutive Sells</th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-600">Volume Spike</th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-600">Sentiment</th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-600">Pattern Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...portfolioAnalysis.redAlerts, ...portfolioAnalysis.yellowAlerts]
+                  .filter(a => a.pattern?.flagged)
+                  .slice(0, 10)
+                  .map((item, idx) => (
+                    <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-gray-900">{item.symbol}</p>
+                        <p className="text-xs text-gray-500">{item.companyName}</p>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {item.pattern?.consecutiveSellDays >= 2 ? (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
+                            {item.pattern.consecutiveSellDays} days
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {item.pattern?.hasVolumeSpike ? (
+                          <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                            {(item.pattern.latestVolume / item.pattern.avgVolume).toFixed(1)}x
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`font-medium ${item.sentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {item.sentiment != null ? `${item.sentiment >= 0 ? '+' : ''}${(item.sentiment * 100).toFixed(0)}%` : '-'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {item.patternStrength && (
+                          <span className={`px-2 py-1 rounded text-xs font-bold text-white ${
+                            item.patternStrength.level === 'CRITICAL' ? 'bg-red-600' :
+                            item.patternStrength.level === 'HIGH' ? 'bg-orange-500' :
+                            item.patternStrength.level === 'MODERATE' ? 'bg-yellow-500' :
+                            'bg-gray-400'
+                          }`}>
+                            {item.patternStrength.score}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Per-Trader Comparison (if multiple traders) */}
       {selectedTrader === 'all' && traderStats && Object.keys(traderStats).length > 1 && (
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <div className="flex items-center gap-3 mb-4">
             <Users className="w-6 h-6 text-blue-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Trader Comparison</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Trader Overview</h3>
           </div>
           
           <div className="overflow-x-auto">
@@ -427,16 +607,13 @@ export default function Dashboard() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-3 px-4 font-medium text-gray-600">Trader</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-600">Trades</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-600">Counter</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-600">Aligned</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-600">Contrarian %</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Style</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-600">Total Trades</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-600">Portfolio Size</th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(traderStats)
-                  .sort((a, b) => b[1].contrarianRatio - a[1].contrarianRatio)
+                  .sort((a, b) => b[1].total - a[1].total)
                   .map(([trader, tStats]) => (
                     <tr 
                       key={trader} 
@@ -447,29 +624,8 @@ export default function Dashboard() {
                         <span className="font-medium text-blue-600 hover:underline">{trader}</span>
                       </td>
                       <td className="text-right py-3 px-4 font-mono">{tStats.total.toLocaleString()}</td>
-                      <td className="text-right py-3 px-4 font-mono text-amber-600">{tStats.counter.toLocaleString()}</td>
-                      <td className="text-right py-3 px-4 font-mono text-green-600">{tStats.aligned.toLocaleString()}</td>
-                      <td className="text-right py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-amber-500 h-2 rounded-full"
-                              style={{ width: `${tStats.contrarianRatio}%` }}
-                            />
-                          </div>
-                          <span className="font-mono text-sm w-12">{tStats.contrarianRatio.toFixed(1)}%</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`text-xs font-medium px-2 py-1 rounded ${
-                          tStats.contrarianRatio > 55 
-                            ? 'bg-amber-100 text-amber-700' 
-                            : tStats.contrarianRatio < 45
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {tStats.contrarianRatio > 55 ? 'Contrarian' : tStats.contrarianRatio < 45 ? 'Momentum' : 'Balanced'}
-                        </span>
+                      <td className="text-right py-3 px-4 font-mono">
+                        {processedData.traderPortfolios[trader]?.length || 0} ISINs
                       </td>
                     </tr>
                   ))}
@@ -486,7 +642,29 @@ export default function Dashboard() {
   );
 }
 
-function MetricCard({ icon: Icon, label, value, subtext, color }) {
+function AlertBadge({ count, label, color, icon: Icon, explanation }) {
+  const colorClasses = {
+    red: 'bg-red-100 text-red-700 border-red-200',
+    yellow: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    teal: 'bg-teal-100 text-teal-700 border-teal-200',
+    green: 'bg-green-100 text-green-700 border-green-200',
+  };
+  
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colorClasses[color]}`}>
+      <Icon className="w-4 h-4" />
+      <span className="font-bold">{count}</span>
+      <span className="text-sm">{label}</span>
+      {explanation && (
+        <InfoTooltip title={explanation.title} position="bottom">
+          {explanation.description}
+        </InfoTooltip>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({ icon: Icon, label, value, subtext, color, explanation }) {
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
     amber: 'bg-amber-50 text-amber-600',
@@ -496,11 +674,16 @@ function MetricCard({ icon: Icon, label, value, subtext, color }) {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-5 w-full">
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-2 mb-3">
         <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
           <Icon className="w-5 h-5" />
         </div>
         <span className="text-sm font-medium text-gray-600">{label}</span>
+        {explanation && (
+          <InfoTooltip title={explanation.title} position="bottom">
+            {explanation.description}
+          </InfoTooltip>
+        )}
       </div>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
       <p className="text-sm text-gray-500 mt-1">{subtext}</p>
@@ -508,32 +691,29 @@ function MetricCard({ icon: Icon, label, value, subtext, color }) {
   );
 }
 
-function ActionCard({ action, total, counterPct, description, color }) {
-  const bgColor = color === 'blue' ? 'bg-blue-500' : 'bg-red-500';
+function AlertItem({ item, type }) {
+  const bgClass = type === 'red' ? 'hover:bg-red-50' : 'hover:bg-teal-50';
+  const borderClass = type === 'red' ? 'border-red-100' : 'border-teal-100';
   
   return (
-    <div className="border rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className={`px-3 py-1 text-white text-sm font-medium rounded ${bgColor}`}>
-          {action}
-        </span>
-        <span className="text-sm text-gray-500">{total.toLocaleString()} trades</span>
+    <div className={`flex items-center justify-between p-3 rounded-lg border ${borderClass} ${bgClass}`}>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-900 truncate">{item.symbol}</p>
+        {item.companyName && (
+          <p className="text-xs text-gray-500 truncate">{item.companyName}</p>
+        )}
+        {item.alertReason && (
+          <p className="text-xs text-gray-400 mt-1">{item.alertReason}</p>
+        )}
       </div>
-      
-      <div className="mb-2">
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600">Counter-Market</span>
-          <span className="font-medium">{counterPct.toFixed(1)}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="bg-amber-500 h-2 rounded-full transition-all"
-            style={{ width: `${counterPct}%` }}
-          />
-        </div>
+      <div className="ml-4 text-right">
+        <p className={`text-lg font-bold ${item.sentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {item.sentiment != null ? `${item.sentiment >= 0 ? '+' : ''}${(item.sentiment * 100).toFixed(0)}%` : '-'}
+        </p>
+        {item.patternStrength && item.patternStrength.score > 0 && (
+          <p className="text-xs text-gray-500">Score: {item.patternStrength.score}</p>
+        )}
       </div>
-      
-      <p className="text-xs text-gray-500">{description}</p>
     </div>
   );
 }
