@@ -35,27 +35,26 @@ export default function TradeChecker() {
   const [history, setHistory] = useState([]);
   const [noDataFound, setNoDataFound] = useState(false);
 
-  // Get unique ISINs that have smart money data (filter out those without institutional trading)
+  // Use session date (simulated present day)
+  const currentDate = sessionDate || '';
+
+  // Get unique ISINs that have smart money data FOR THE CURRENT SESSION DATE
   const availableIsins = useMemo(() => {
-    if (!smartMoneyAggregated || smartMoneyAggregated.size === 0) return [];
+    if (!smartMoneyAggregated || smartMoneyAggregated.size === 0 || !currentDate) return [];
     
-    // Extract unique ISINs from smartMoneyAggregated keys (format: "ISIN_DATE")
-    // Only include ISINs where at least one entry has valid sentiment (not null)
+    // Extract ISINs that have valid sentiment data on the current session date
     const isinsWithData = new Set();
     
     for (const [key, value] of smartMoneyAggregated) {
-      // Only include if there's actual sentiment data (not null)
-      if (value.smartMoneySentiment !== null) {
-        const isin = key.split('_')[0];
+      // Key format is "ISIN_DATE" - only include if date matches current session
+      const [isin, date] = key.split('_');
+      if (date === currentDate && value.smartMoneySentiment !== null) {
         isinsWithData.add(isin);
       }
     }
     
     return Array.from(isinsWithData).sort();
-  }, [smartMoneyAggregated]);
-
-  // Use session date (simulated present day)
-  const currentDate = sessionDate || '';
+  }, [smartMoneyAggregated, currentDate]);
 
   const handleCheck = async () => {
     if (!isin || !currentDate) {
@@ -208,7 +207,7 @@ export default function TradeChecker() {
                 ))}
               </datalist>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {availableIsins.length.toLocaleString()} ISINs with smart money data
+                {availableIsins.length.toLocaleString()} ISINs with data on {currentDate || 'selected date'}
               </p>
             </div>
 
