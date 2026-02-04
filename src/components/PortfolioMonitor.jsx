@@ -660,10 +660,10 @@ function SentimentAlertCard({ item }) {
             const typeSentiment = item.typeSentiments[type];
             const typeInfo = CLIENT_TYPES[type];
             
-            if (typeSentiment === undefined) return (
-              <div key={type} className="p-1 bg-white rounded" title={typeInfo?.name}>
+            if (typeSentiment === undefined || typeSentiment === null) return (
+              <div key={type} className="p-1 bg-white dark:bg-gray-800 rounded" title={typeInfo?.name}>
                 <p className="text-[10px] text-gray-400">{typeInfo?.shortName || type}</p>
-                <p className="text-xs text-gray-300">-</p>
+                <p className="text-xs text-gray-300 dark:text-gray-600">-</p>
               </div>
             );
             

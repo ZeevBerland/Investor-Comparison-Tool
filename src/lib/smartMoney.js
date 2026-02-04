@@ -241,7 +241,7 @@ export function getHistoricalData(aggregatedData, isin, endDate, lookbackDays = 
 export function calculateWinRateAgainstType(trades, clientType, againstSentiment = true) {
   const relevantTrades = trades.filter(trade => {
     const typeSentiment = trade.typeSentiments?.[clientType];
-    if (typeSentiment === undefined) return false;
+    if (typeSentiment === undefined || typeSentiment === null) return false;
     
     const userDirection = trade.isBuy ? 1 : -1;
     const isAgainst = userDirection * typeSentiment < 0;
@@ -437,7 +437,7 @@ export function calculateHistoricalPerformance(transactions, aggregatedData, tra
     // Track by type
     SMART_MONEY_TYPES.forEach(type => {
       const typeSentiment = sentiment.typeSentiments?.[type];
-      if (typeSentiment === undefined) return;
+      if (typeSentiment === undefined || typeSentiment === null) return;
       
       const typeAlignment = userDirection * typeSentiment;
       if (typeAlignment > 0.1) {
@@ -540,7 +540,7 @@ export function calculateConsensusScore(typeSentiments) {
   
   for (const type of SMART_MONEY_TYPES) {
     const sentiment = typeSentiments[type];
-    if (sentiment === undefined) continue;
+    if (sentiment === undefined || sentiment === null) continue;
     
     if (sentiment > 0.1) {
       bullish++;

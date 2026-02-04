@@ -83,8 +83,9 @@ export default function Dashboard() {
       // Accumulate client type sentiments
       if (sentiment.typeSentiments) {
         SMART_MONEY_TYPES.forEach(type => {
-          if (sentiment.typeSentiments[type] !== undefined) {
-            clientTypeTotals[type].total += sentiment.typeSentiments[type];
+          const typeSentiment = sentiment.typeSentiments[type];
+          if (typeSentiment !== undefined && typeSentiment !== null) {
+            clientTypeTotals[type].total += typeSentiment;
             clientTypeTotals[type].count++;
           }
         });

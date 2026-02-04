@@ -574,7 +574,7 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {SMART_MONEY_TYPES.map(type => {
             const typeSentiment = sentimentData.typeSentiments?.[type];
-            if (typeSentiment === undefined) return null;
+            if (typeSentiment === undefined || typeSentiment === null) return null;
             
             const typeInfo = CLIENT_TYPES[type];
             const level = getSentimentLevel(typeSentiment);
