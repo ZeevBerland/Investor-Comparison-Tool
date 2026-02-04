@@ -5,6 +5,19 @@ import { getTrafficLight, getSentimentLevel, CLIENT_TYPES, SMART_MONEY_TYPES, ca
 import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
 import LoadingSpinner, { ButtonSpinner } from './LoadingSpinner';
 
+// Format volume with appropriate suffix (M for millions, K for thousands)
+function formatVolume(value) {
+  if (value === null || value === undefined) return '₪0';
+  if (value >= 1000000) {
+    return `₪${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `₪${(value / 1000).toFixed(1)}K`;
+  } else if (value > 0) {
+    return `₪${Math.round(value)}`;
+  }
+  return '₪0';
+}
+
 export default function TradeChecker() {
   const { 
     tradingData, processedData,
@@ -604,11 +617,11 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
       <div className="mt-4 pt-3 border-t border-gray-200 grid grid-cols-2 gap-4 text-sm">
         <div>
           <span className="text-gray-500">Total Buy Volume</span>
-          <p className="font-mono text-green-600">₪{(sentimentData.smartMoneyBuy / 1000000).toFixed(2)}M</p>
+          <p className="font-mono text-green-600">{formatVolume(sentimentData.smartMoneyBuy)}</p>
         </div>
         <div>
           <span className="text-gray-500">Total Sell Volume</span>
-          <p className="font-mono text-red-600">₪{(sentimentData.smartMoneySell / 1000000).toFixed(2)}M</p>
+          <p className="font-mono text-red-600">{formatVolume(sentimentData.smartMoneySell)}</p>
         </div>
       </div>
     </div>

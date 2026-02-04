@@ -5,6 +5,19 @@ import { getSentimentAlertLevel, CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAle
 import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
 import LoadingSpinner, { ButtonSpinner } from './LoadingSpinner';
 
+// Format volume with appropriate suffix (M for millions, K for thousands)
+function formatVolume(value) {
+  if (value === null || value === undefined) return '₪0';
+  if (value >= 1000000) {
+    return `₪${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `₪${(value / 1000).toFixed(1)}K`;
+  } else if (value > 0) {
+    return `₪${Math.round(value)}`;
+  }
+  return '₪0';
+}
+
 export default function PortfolioMonitor() {
   const { 
     tradingData, processedData, traders,
@@ -687,9 +700,9 @@ function SentimentAlertCard({ item }) {
       
       {/* Volume Info */}
       {item.buyVolume != null && (
-        <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between text-xs">
-          <span className="text-green-600">Buy: ₪{(item.buyVolume / 1000000).toFixed(1)}M</span>
-          <span className="text-red-600">Sell: ₪{(item.sellVolume / 1000000).toFixed(1)}M</span>
+        <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between text-xs">
+          <span className="text-green-600">Buy: {formatVolume(item.buyVolume)}</span>
+          <span className="text-red-600">Sell: {formatVolume(item.sellVolume)}</span>
         </div>
       )}
     </div>
