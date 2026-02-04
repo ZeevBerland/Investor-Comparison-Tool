@@ -329,11 +329,14 @@ export default function TradeChecker() {
 }
 
 function TrafficLightMini({ color }) {
-  const colorClasses = {
-    GREEN: 'bg-green-500',
-    YELLOW: 'bg-yellow-500',
-    RED: 'bg-red-500',
-  };
+  // Handle "No Data" case
+  if (color === 'GRAY') {
+    return (
+      <div className="flex justify-center gap-1">
+        <div className="w-3 h-3 rounded-full bg-gray-400" />
+      </div>
+    );
+  }
   
   return (
     <div className="flex justify-center gap-1">
@@ -369,6 +372,12 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
       text: 'text-red-700 dark:text-red-400',
       icon: ThumbsDown,
     },
+    GRAY: {
+      bg: 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600',
+      light: 'bg-gray-400',
+      text: 'text-gray-700 dark:text-gray-400',
+      icon: Info,
+    },
   };
   
   const config = trafficColors[trafficLight.color];
@@ -389,11 +398,17 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
         
         {/* Traffic Light */}
         <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'RED' ? 'bg-red-500' : 'bg-red-200 dark:bg-red-800'}`} />
-            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200 dark:bg-yellow-800'}`} />
-            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200 dark:bg-green-800'}`} />
-          </div>
+          {trafficLight.color === 'GRAY' ? (
+            <div className="flex gap-1">
+              <div className="w-4 h-4 rounded-full bg-gray-400" />
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'RED' ? 'bg-red-500' : 'bg-red-200 dark:bg-red-800'}`} />
+              <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200 dark:bg-yellow-800'}`} />
+              <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200 dark:bg-green-800'}`} />
+            </div>
+          )}
           <span className={`font-bold ${config.text}`}>{trafficLight.label}</span>
           <InfoTooltip title={METRIC_EXPLANATIONS.trafficLight.title} position="left">
             {METRIC_EXPLANATIONS.trafficLight.description}

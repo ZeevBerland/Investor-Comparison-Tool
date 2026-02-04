@@ -26,11 +26,11 @@ export const SMART_MONEY_TYPES = ['F', 'M', 'N', 'P', 'O'];
  * Returns value between -1 (all sell) and +1 (all buy)
  * @param {number} buyAmount - Buy turnover in NIS
  * @param {number} sellAmount - Sell turnover in NIS
- * @returns {number} - Sentiment score between -1 and 1
+ * @returns {number|null} - Sentiment score between -1 and 1, or null if no data
  */
 export function calculateSentiment(buyAmount, sellAmount) {
   const total = buyAmount + sellAmount;
-  if (total === 0) return 0;
+  if (total === 0) return null; // No trading data
   return (buyAmount - sellAmount) / total;
 }
 
@@ -61,10 +61,20 @@ export function getSentimentAlertLevel(sentiment) {
 /**
  * Get traffic light color for trade checker
  * @param {boolean} isBuy - Is the user buying
- * @param {number} institutionalSentiment - Combined institutional sentiment
- * @returns {object} - { color: 'GREEN'|'YELLOW'|'RED', label, recommendation }
+ * @param {number|null} institutionalSentiment - Combined institutional sentiment
+ * @returns {object} - { color: 'GREEN'|'YELLOW'|'RED'|'GRAY', label, recommendation }
  */
 export function getTrafficLight(isBuy, institutionalSentiment) {
+  // Check for no data case
+  if (institutionalSentiment === null || institutionalSentiment === undefined) {
+    return {
+      color: 'GRAY',
+      label: 'No Data',
+      recommendation: 'NONE',
+      message: 'No institutional trading data available for this security',
+    };
+  }
+  
   const userDirection = isBuy ? 1 : -1;
   const alignment = userDirection * institutionalSentiment;
   
