@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DataProvider } from './hooks/useDataStore';
+import { ThemeProvider } from './hooks/useTheme';
 import Layout from './components/Layout';
 import FileUpload from './components/FileUpload';
 import TraderSelection from './components/TraderSelection';
@@ -61,9 +62,11 @@ function AppContent() {
 
 function App() {
   return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
+    <ThemeProvider>
+      <DataProvider>
+        <AppContent />
+      </DataProvider>
+    </ThemeProvider>
   );
 }
 

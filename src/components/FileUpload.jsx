@@ -13,6 +13,7 @@ export default function FileUpload({ onComplete }) {
   } = useDataStore();
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Processing file...');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [transactionFile, setTransactionFile] = useState(null);
   const [tradingFile, setTradingFile] = useState(null);
@@ -141,17 +142,29 @@ export default function FileUpload({ onComplete }) {
     });
   }, [handleFileUpload, handleZipUpload]);
 
-  const handleProcess = () => {
+  const handleProcess = async () => {
+    setIsProcessing(true);
+    setError(null);
+    
+    // Small delay for visual feedback
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     const result = processData();
     if (result) {
       // Aggregate smart money data if both files are loaded
       if (smartMoneyRaw.length > 0 && securityToIsin.size > 0) {
         aggregateSmartMoney();
       }
+      
+      // Small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       onComplete();
     } else {
       setError('Could not process data. Please upload all three required files.');
     }
+    
+    setIsProcessing(false);
   };
 
   const canProcess = transactions.length > 0 && tradingData.length > 0 && indicesData.length > 0;
@@ -160,8 +173,8 @@ export default function FileUpload({ onComplete }) {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Your Data</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Upload Your Data</h2>
+        <p className="text-gray-600 dark:text-gray-400">
           Upload your transaction, trading, and indices CSV files to start analyzing
         </p>
       </div>
@@ -170,20 +183,20 @@ export default function FileUpload({ onComplete }) {
       <div
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
-        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors bg-white"
+        className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors bg-white dark:bg-gray-800"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-            <p className="text-gray-600">{loadingMessage}</p>
+            <p className="text-gray-600 dark:text-gray-400">{loadingMessage}</p>
           </div>
         ) : (
           <>
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg text-gray-700 mb-2">
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-2">
               Drag & drop ZIP or CSV files here
             </p>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               or click the buttons below to select files
             </p>
 
@@ -202,15 +215,15 @@ export default function FileUpload({ onComplete }) {
                 <Archive className="w-5 h-5" />
                 Upload ZIP Archive
               </span>
-              <p className="text-xs text-gray-500 mt-2">Recommended: Load all files at once from menora_data.zip</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Recommended: Load all files at once from menora_data.zip</p>
             </label>
 
             <div className="relative mb-4">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">or upload individual files</span>
+                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">or upload individual files</span>
               </div>
             </div>
             
@@ -265,8 +278,8 @@ export default function FileUpload({ onComplete }) {
             </div>
             
             {/* Smart Money Data Files */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-500 mb-3">Smart Money Data (Optional - enables sentiment analysis)</p>
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Smart Money Data (Optional - enables sentiment analysis)</p>
               <div className="flex flex-wrap gap-3 justify-center">
                 <label className="cursor-pointer">
                   <input
@@ -307,19 +320,19 @@ export default function FileUpload({ onComplete }) {
 
       {/* Error Message */}
       {error && (
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-red-700">{error}</p>
+        <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <p className="text-red-700 dark:text-red-300">{error}</p>
         </div>
       )}
 
       {/* ZIP File Loaded Banner */}
       {zipFile && (
-        <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center gap-3">
-          <Archive className="w-5 h-5 text-indigo-600" />
+        <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg flex items-center gap-3">
+          <Archive className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <div>
-            <p className="font-medium text-indigo-900">ZIP Archive Loaded</p>
-            <p className="text-sm text-indigo-700">{zipFile.name} - All files extracted successfully</p>
+            <p className="font-medium text-indigo-900 dark:text-indigo-200">ZIP Archive Loaded</p>
+            <p className="text-sm text-indigo-700 dark:text-indigo-300">{zipFile.name} - All files extracted successfully</p>
           </div>
         </div>
       )}
@@ -346,8 +359,8 @@ export default function FileUpload({ onComplete }) {
         />
         
         {/* Smart Money Files */}
-        <div className="pt-3 border-t border-gray-200">
-          <p className="text-xs text-gray-500 mb-2">Smart Money Data (enables sentiment-based alerts)</p>
+        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Smart Money Data (enables sentiment-based alerts)</p>
           <div className="space-y-2">
             <FileStatus
               label="Securities Mapping"
@@ -365,8 +378,8 @@ export default function FileUpload({ onComplete }) {
         </div>
         
         {hasSmartMoneyData && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm text-green-700 flex items-center gap-2">
+          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
               Smart money sentiment analysis enabled
             </p>
@@ -379,28 +392,40 @@ export default function FileUpload({ onComplete }) {
         <div className="mt-8 text-center">
           <button
             onClick={handleProcess}
-            className="px-8 py-3 bg-green-600 text-white text-lg font-medium rounded-lg hover:bg-green-700 transition-colors shadow-lg"
+            disabled={isProcessing}
+            className={`px-8 py-3 text-white text-lg font-medium rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2 mx-auto ${
+              isProcessing 
+                ? 'bg-green-500 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
           >
-            Process Data & Continue
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processing Data...
+              </>
+            ) : (
+              'Process Data & Continue'
+            )}
           </button>
         </div>
       )}
 
       {/* Help Text */}
-      <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h3 className="font-medium text-gray-900 mb-2">Expected File Formats</h3>
-        <div className="text-sm text-gray-600 space-y-2">
+      <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <h3 className="font-medium text-gray-900 dark:text-white mb-2">Expected File Formats</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
           <p>
-            <strong>Transactions:</strong> ISIN, Action, OrderDate, InvestmentManager, ...
+            <strong className="text-gray-900 dark:text-white">Transactions:</strong> ISIN, Action, OrderDate, InvestmentManager, ...
           </p>
           <p>
-            <strong>Trading EOD:</strong> tradeDate, isin, change, symbol, ...
+            <strong className="text-gray-900 dark:text-white">Trading EOD:</strong> tradeDate, isin, change, symbol, ...
           </p>
           <p>
-            <strong>Indices EOD:</strong> tradeDate, indexId, closingIndexPrice, ...
+            <strong className="text-gray-900 dark:text-white">Indices EOD:</strong> tradeDate, indexId, closingIndexPrice, ...
           </p>
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-200">
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
           <p className="text-sm text-gray-600 font-medium mb-1">Smart Money Files (Optional):</p>
           <div className="text-sm text-gray-600 space-y-1">
             <p>
@@ -422,26 +447,26 @@ export default function FileUpload({ onComplete }) {
 function FileStatus({ label, file, example, required, optional }) {
   return (
     <div className={`p-4 rounded-lg border flex items-center justify-between ${
-      file ? 'bg-green-50 border-green-200' : optional ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
+      file ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : optional ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
     }`}>
       <div className="flex items-center gap-3">
         {file ? (
-          <CheckCircle className="w-5 h-5 text-green-600" />
+          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
         ) : (
           <FileText className={`w-5 h-5 ${optional ? 'text-amber-400' : 'text-gray-400'}`} />
         )}
         <div>
-          <p className="font-medium text-gray-900">
+          <p className="font-medium text-gray-900 dark:text-white">
             {label}
-            {optional && !file && <span className="ml-2 text-xs text-amber-600">(Optional)</span>}
+            {optional && !file && <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(Optional)</span>}
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             {file ? `${file.name} (${file.rows.toLocaleString()} rows)` : `e.g., ${example}`}
           </p>
         </div>
       </div>
       {file && (
-        <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">
+        <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
           Loaded
         </span>
       )}

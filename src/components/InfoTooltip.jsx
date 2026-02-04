@@ -28,7 +28,7 @@ export default function InfoTooltip({ title, children, position = 'top' }) {
         onClick={() => setIsOpen(!isOpen)}
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
-        className="p-0.5 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+        className="p-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none transition-colors"
         aria-label={`Info about ${title}`}
       >
         <Info className="w-3.5 h-3.5" />

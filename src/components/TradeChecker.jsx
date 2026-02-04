@@ -107,7 +107,7 @@ export default function TradeChecker() {
   if (!processedData) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">No data loaded. Please upload your files first.</p>
+        <p className="text-gray-500 dark:text-gray-400">No data loaded. Please upload your files first.</p>
       </div>
     );
   }
@@ -115,10 +115,10 @@ export default function TradeChecker() {
   if (!smartMoneyLoaded) {
     return (
       <div className="text-center py-12">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 max-w-lg mx-auto">
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-8 max-w-lg mx-auto">
           <Zap className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-amber-800 mb-2">Smart Money Data Required</h3>
-          <p className="text-amber-700">
+          <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">Smart Money Data Required</h3>
+          <p className="text-amber-700 dark:text-amber-300">
             Please upload the Smart Money EOD and Securities Mapping files to enable trade checking.
           </p>
         </div>
@@ -131,29 +131,29 @@ export default function TradeChecker() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Trade Checker</h2>
-          <p className="text-gray-600 mt-1">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Trade Checker</h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             Check institutional sentiment before executing a trade
           </p>
         </div>
         
         {sessionDate && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span className="text-sm text-blue-700">Session: <strong>{sessionDate}</strong></span>
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm text-blue-700 dark:text-blue-300">Session: <strong>{sessionDate}</strong></span>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Form */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Trade Details</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-4 sm:p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Trade Details</h3>
           
           <div className="space-y-4">
             {/* ISIN Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 ISIN
               </label>
               <input
@@ -162,21 +162,21 @@ export default function TradeChecker() {
                 onChange={(e) => handleIsinChange(e.target.value)}
                 placeholder="e.g., IL0010811243"
                 list="isin-list"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
               <datalist id="isin-list">
                 {availableIsins.slice(0, 100).map(isin => (
                   <option key={isin} value={isin} />
                 ))}
               </datalist>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {availableIsins.length.toLocaleString()} ISINs available
               </p>
             </div>
 
             {/* Action Select */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Action
               </label>
               <div className="flex gap-2">
@@ -185,7 +185,7 @@ export default function TradeChecker() {
                   className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                     action === 'buy'
                       ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   <TrendingUp className="w-4 h-4 inline mr-2" />
@@ -196,7 +196,7 @@ export default function TradeChecker() {
                   className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
                     action === 'sell'
                       ? 'bg-red-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   <TrendingDown className="w-4 h-4 inline mr-2" />
@@ -247,12 +247,12 @@ export default function TradeChecker() {
               />
             </>
           ) : (
-            <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
               <Search className="w-12 h-12 text-gray-400 mb-4" />
-              <p className="text-gray-500">
+              <p className="text-gray-500 dark:text-gray-400">
                 Enter trade details and click "Check" to see smart money sentiment
               </p>
-              <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
                 <Zap className="w-3 h-3" />
                 Smart money sentiment analysis enabled
               </p>
@@ -271,12 +271,12 @@ export default function TradeChecker() {
 
       {/* History */}
       {history.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Check History</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Check History</h3>
             <button
               onClick={() => setHistory([])}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               Clear
             </button>
@@ -285,19 +285,19 @@ export default function TradeChecker() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Time</th>
-                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Symbol</th>
-                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600">Action</th>
-                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600">Sentiment</th>
-                  <th className="text-center py-2 px-3 text-sm font-medium text-gray-600">Signal</th>
+                <tr className="border-b dark:border-gray-700">
+                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600 dark:text-gray-400">Time</th>
+                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600 dark:text-gray-400">Symbol</th>
+                  <th className="text-left py-2 px-3 text-sm font-medium text-gray-600 dark:text-gray-400">Action</th>
+                  <th className="text-right py-2 px-3 text-sm font-medium text-gray-600 dark:text-gray-400">Sentiment</th>
+                  <th className="text-center py-2 px-3 text-sm font-medium text-gray-600 dark:text-gray-400">Signal</th>
                 </tr>
               </thead>
               <tbody>
                 {history.map((item, idx) => (
-                  <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 px-3 text-sm text-gray-500">{item.timestamp}</td>
-                    <td className="py-2 px-3 text-sm font-mono">{item.symbol}</td>
+                  <tr key={idx} className="border-b dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-2 px-3 text-sm text-gray-500 dark:text-gray-400">{item.timestamp}</td>
+                    <td className="py-2 px-3 text-sm font-mono dark:text-gray-200">{item.symbol}</td>
                     <td className="py-2 px-3 text-sm">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         item.action === 'buy' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -352,21 +352,21 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
   
   const trafficColors = {
     GREEN: {
-      bg: 'bg-green-50 border-green-300',
+      bg: 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700',
       light: 'bg-green-500',
-      text: 'text-green-700',
+      text: 'text-green-700 dark:text-green-400',
       icon: ThumbsUp,
     },
     YELLOW: {
-      bg: 'bg-yellow-50 border-yellow-300',
+      bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700',
       light: 'bg-yellow-500',
-      text: 'text-yellow-700',
+      text: 'text-yellow-700 dark:text-yellow-400',
       icon: Minus,
     },
     RED: {
-      bg: 'bg-red-50 border-red-300',
+      bg: 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700',
       light: 'bg-red-500',
-      text: 'text-red-700',
+      text: 'text-red-700 dark:text-red-400',
       icon: ThumbsDown,
     },
   };
@@ -381,8 +381,8 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
         <div>
           {securityInfo && (
             <>
-              <h4 className="text-lg font-bold text-gray-900">{securityInfo.symbol}</h4>
-              <p className="text-sm text-gray-600">{securityInfo.companyName}</p>
+              <h4 className="text-lg font-bold text-gray-900 dark:text-white">{securityInfo.symbol}</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{securityInfo.companyName}</p>
             </>
           )}
         </div>
@@ -390,9 +390,9 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
         {/* Traffic Light */}
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
-            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'RED' ? 'bg-red-500' : 'bg-red-200'}`} />
-            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200'}`} />
-            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200'}`} />
+            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'RED' ? 'bg-red-500' : 'bg-red-200 dark:bg-red-800'}`} />
+            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200 dark:bg-yellow-800'}`} />
+            <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200 dark:bg-green-800'}`} />
           </div>
           <span className={`font-bold ${config.text}`}>{trafficLight.label}</span>
           <InfoTooltip title={METRIC_EXPLANATIONS.trafficLight.title} position="left">
@@ -565,12 +565,12 @@ function HistoricalContextPanel({ context, sentiment }) {
   const confidence = patternOutcomes ? getConfidenceLevel(patternOutcomes.totalPatterns) : null;
   
   return (
-    <div className="bg-amber-50 rounded-xl border-2 border-amber-200 p-4 sm:p-5">
+    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-200 dark:border-amber-700 p-4 sm:p-5">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <History className="w-5 h-5 text-amber-600" />
-        <h4 className="font-semibold text-amber-900">Historical Context</h4>
-        <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">EDA-Powered</span>
+        <History className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+        <h4 className="font-semibold text-amber-900 dark:text-amber-200">Historical Context</h4>
+        <span className="text-xs text-amber-600 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/50 px-2 py-0.5 rounded">EDA-Powered</span>
         <InfoTooltip title="Historical Context" position="right">
           Analysis based on historical patterns from the smart money EDA. Shows what happened in the past when sentiment was at similar levels, helping predict likely outcomes.
         </InfoTooltip>
@@ -579,10 +579,10 @@ function HistoricalContextPanel({ context, sentiment }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {/* Pattern Outcomes */}
         {patternOutcomes && patternOutcomes.totalPatterns > 0 && (
-          <div className="p-3 sm:p-4 bg-white rounded-lg border border-amber-200">
+          <div className="p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-lg border border-amber-200 dark:border-amber-700">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1">
-                <span className="text-sm font-medium text-gray-700">Similar Patterns</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Similar Patterns</span>
                 <InfoTooltip title={METRIC_EXPLANATIONS.similarPatterns.title} position="bottom">
                   {METRIC_EXPLANATIONS.similarPatterns.description}
                 </InfoTooltip>
@@ -600,12 +600,12 @@ function HistoricalContextPanel({ context, sentiment }) {
             
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Occurrences</span>
-                <span className="text-base sm:text-lg font-bold text-amber-700">{patternOutcomes.totalPatterns}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Occurrences</span>
+                <span className="text-base sm:text-lg font-bold text-amber-700 dark:text-amber-400">{patternOutcomes.totalPatterns}</span>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">Led to Decline</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Led to Decline</span>
                   <InfoTooltip title={METRIC_EXPLANATIONS.declineRate.title} position="left">
                     {METRIC_EXPLANATIONS.declineRate.description}
                   </InfoTooltip>
@@ -616,7 +616,7 @@ function HistoricalContextPanel({ context, sentiment }) {
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">Avg 5d Return</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Avg 5d Return</span>
                   <InfoTooltip title={METRIC_EXPLANATIONS.avgReturn.title} position="left">
                     {METRIC_EXPLANATIONS.avgReturn.description}
                   </InfoTooltip>
@@ -631,9 +631,9 @@ function HistoricalContextPanel({ context, sentiment }) {
         
         {/* Sentiment Trend */}
         {trend && trend.trend !== 'UNKNOWN' && (
-          <div className="p-3 sm:p-4 bg-white rounded-lg border border-amber-200">
+          <div className="p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-lg border border-amber-200 dark:border-amber-700">
             <div className="flex items-center gap-1">
-              <span className="text-sm font-medium text-gray-700">Sentiment Trend</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sentiment Trend</span>
               <InfoTooltip title={METRIC_EXPLANATIONS.sentimentTrend.title} position="bottom">
                 {METRIC_EXPLANATIONS.sentimentTrend.description}
               </InfoTooltip>
@@ -653,7 +653,7 @@ function HistoricalContextPanel({ context, sentiment }) {
                 {trend.trend.replace(/_/g, ' ')}
               </span>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Delta vs {trend.lookbackDays || 5}-day avg: {trend.delta >= 0 ? '+' : ''}{(trend.delta * 100).toFixed(1)}%
             </p>
           </div>
@@ -661,10 +661,10 @@ function HistoricalContextPanel({ context, sentiment }) {
         
         {/* Consensus Indicator */}
         {consensus && consensus.totalTypes > 0 && (
-          <div className="p-3 sm:p-4 bg-white rounded-lg border border-amber-200">
+          <div className="p-3 sm:p-4 bg-white dark:bg-gray-800 rounded-lg border border-amber-200 dark:border-amber-700">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1">
-                <span className="text-sm font-medium text-gray-700">Client Consensus</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Client Consensus</span>
                 <InfoTooltip title={METRIC_EXPLANATIONS.consensus.title} position="bottom">
                   {METRIC_EXPLANATIONS.consensus.description}
                 </InfoTooltip>
@@ -683,19 +683,19 @@ function HistoricalContextPanel({ context, sentiment }) {
             <div className="flex items-center gap-3 mt-2">
               <div className="flex gap-1">
                 {[...Array(5)].map((_, i) => {
-                  let dotColor = 'bg-gray-200';
+                  let dotColor = 'bg-gray-200 dark:bg-gray-600';
                   if (i < consensus.bullishCount) dotColor = 'bg-green-500';
                   else if (i < consensus.bullishCount + consensus.bearishCount) dotColor = 'bg-red-500';
-                  else if (i < consensus.totalTypes) dotColor = 'bg-gray-400';
+                  else if (i < consensus.totalTypes) dotColor = 'bg-gray-400 dark:bg-gray-500';
                   return <div key={i} className={`w-3 h-3 rounded-full ${dotColor}`} />;
                 })}
               </div>
             </div>
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
               {consensus.bullishCount} bullish, {consensus.bearishCount} bearish, {consensus.neutralCount} neutral
             </p>
             
-            <p className="text-xs text-amber-700 mt-2">
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
               {consensus.consensusLevel === 'STRONG' || consensus.consensusLevel === 'UNANIMOUS'
                 ? 'Strong agreement - signal is more reliable.'
                 : consensus.consensusLevel === 'MODERATE'

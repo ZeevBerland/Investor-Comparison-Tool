@@ -1,5 +1,6 @@
-import { BarChart3, Search, LogOut, RotateCcw, User, Calendar } from 'lucide-react';
+import { BarChart3, Search, LogOut, RotateCcw, User, Calendar, Moon, Sun } from 'lucide-react';
 import { useDataStore } from '../hooks/useDataStore';
+import { useTheme } from '../hooks/useTheme';
 
 const tabs = [
   { id: 'dashboard', label: 'Dashboard', labelFull: 'Dashboard', icon: BarChart3 },
@@ -8,6 +9,7 @@ const tabs = [
 
 export default function Layout({ children, activeTab, setActiveTab, appPhase, onLogout, onReset }) {
   const { isSessionActive, sessionTrader, sessionDate, endSession, reset } = useDataStore();
+  const { isDark, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     endSession();
@@ -20,16 +22,16 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-200">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-10 transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                 <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h1 className="text-base sm:text-xl font-semibold text-gray-900 truncate">
+              <h1 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
                 Investor Helper
               </h1>
             </div>
@@ -38,24 +40,33 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Session Info - only show in main phase */}
               {isSessionActive && appPhase === 'main' && (
-                <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-1.5 text-blue-700">
+                <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
                     <User className="w-4 h-4" />
                     <span className="text-sm font-medium">{sessionTrader}</span>
                   </div>
-                  <div className="w-px h-4 bg-blue-300" />
-                  <div className="flex items-center gap-1.5 text-blue-600">
+                  <div className="w-px h-4 bg-blue-300 dark:bg-blue-700" />
+                  <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                     <Calendar className="w-4 h-4" />
                     <span className="text-sm">{sessionDate}</span>
                   </div>
                 </div>
               )}
               
+              {/* Theme Toggle Button */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              
               {/* Logout Button - only in main phase */}
               {isSessionActive && appPhase === 'main' && (
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1 text-xs sm:text-sm text-gray-500 hover:text-gray-700 px-2 sm:px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors flex-shrink-0"
+                  className="flex items-center gap-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 sm:px-3 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
                 >
                   <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="hidden sm:inline">Logout</span>
@@ -66,7 +77,7 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
               {(appPhase === 'selectTrader' || appPhase === 'main') && (
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-1 text-xs sm:text-sm text-red-500 hover:text-red-700 px-2 sm:px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors flex-shrink-0"
+                  className="flex items-center gap-1 text-xs sm:text-sm text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 sm:px-3 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex-shrink-0"
                 >
                   <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="hidden sm:inline">Reset Data</span>
@@ -79,7 +90,7 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
 
       {/* Navigation Tabs - Only show in main phase */}
       {appPhase === 'main' && (
-        <nav className="bg-white border-b sticky top-14 sm:top-16 z-10">
+        <nav className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 sticky top-14 sm:top-16 z-10 transition-colors duration-200">
           <div className="max-w-7xl mx-auto">
             <div className="flex overflow-x-auto scrollbar-hide">
               {tabs.map(tab => {
@@ -93,8 +104,8 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
                     className={`
                       flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer
                       ${isActive 
-                        ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' 
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                       }
                     `}
                   >
@@ -111,10 +122,10 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
 
       {/* Mobile Session Info Bar - only in main phase */}
       {isSessionActive && appPhase === 'main' && (
-        <div className="sm:hidden bg-blue-50 border-b border-blue-200 px-3 py-2">
-          <div className="flex items-center justify-center gap-3 text-blue-700 text-sm">
+        <div className="sm:hidden bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 px-3 py-2 transition-colors duration-200">
+          <div className="flex items-center justify-center gap-3 text-blue-700 dark:text-blue-300 text-sm">
             <span className="font-medium">{sessionTrader}</span>
-            <span className="text-blue-400">|</span>
+            <span className="text-blue-400 dark:text-blue-600">|</span>
             <span>{sessionDate}</span>
           </div>
         </div>
@@ -126,9 +137,9 @@ export default function Layout({ children, activeTab, setActiveTab, appPhase, on
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-auto">
+      <footer className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 mt-auto transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <p className="text-center text-xs sm:text-sm text-gray-500">
+          <p className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             Investor Helper - POC Demo
           </p>
         </div>

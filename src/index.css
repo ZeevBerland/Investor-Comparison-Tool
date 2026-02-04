@@ -6,6 +6,16 @@ body {
   @apply bg-gray-50 text-gray-900 antialiased;
 }
 
+/* Dark mode body */
+.dark body {
+  @apply bg-gray-900 text-gray-100;
+}
+
+/* Dark mode form elements */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 /* Hide scrollbar for horizontal nav on mobile */
 .scrollbar-hide {
   -ms-overflow-style: none;
@@ -34,9 +44,27 @@ body {
   @apply bg-gray-400;
 }
 
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-gray-600;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
 /* Mobile-friendly touch targets */
 @media (max-width: 640px) {
   button, a, input, select {
     min-height: 44px;
   }
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
