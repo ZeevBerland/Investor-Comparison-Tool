@@ -21,7 +21,7 @@ function formatVolume(value) {
 export default function TradeChecker() {
   const { 
     tradingData, processedData,
-    smartMoneyLoaded, getSmartMoneySentiment, getSmartMoneyHistory, getPatternOutcomes, 
+    smartMoneyLoaded, smartMoneyAggregated, getSmartMoneySentiment, getSmartMoneyHistory, getPatternOutcomes, 
     detectSmartMoneyPattern, isinToSecurity,
     sessionDate
   } = useDataStore();
@@ -35,12 +35,24 @@ export default function TradeChecker() {
   const [history, setHistory] = useState([]);
   const [noDataFound, setNoDataFound] = useState(false);
 
-  // Get unique ISINs for suggestions
+  // Get unique ISINs that have smart money data (filter out those without institutional trading)
   const availableIsins = useMemo(() => {
-    if (!tradingData) return [];
-    const isins = new Set(tradingData.map(row => String(row.isin).trim().toUpperCase()));
-    return Array.from(isins).sort();
-  }, [tradingData]);
+    if (!smartMoneyAggregated || smartMoneyAggregated.size === 0) return [];
+    
+    // Extract unique ISINs from smartMoneyAggregated keys (format: "ISIN_DATE")
+    // Only include ISINs where at least one entry has valid sentiment (not null)
+    const isinsWithData = new Set();
+    
+    for (const [key, value] of smartMoneyAggregated) {
+      // Only include if there's actual sentiment data (not null)
+      if (value.smartMoneySentiment !== null) {
+        const isin = key.split('_')[0];
+        isinsWithData.add(isin);
+      }
+    }
+    
+    return Array.from(isinsWithData).sort();
+  }, [smartMoneyAggregated]);
 
   // Use session date (simulated present day)
   const currentDate = sessionDate || '';
@@ -196,7 +208,7 @@ export default function TradeChecker() {
                 ))}
               </datalist>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {availableIsins.length.toLocaleString()} ISINs available
+                {availableIsins.length.toLocaleString()} ISINs with smart money data
               </p>
             </div>
 
