@@ -605,18 +605,21 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
             if (typeSentiment === undefined || typeSentiment === null) return null;
             
             const typeInfo = CLIENT_TYPES[type];
-            const level = getSentimentLevel(typeSentiment);
+            const typeData = sentimentData.byType?.[type];
+            const buyVol = typeData?.buy || 0;
+            const sellVol = typeData?.sell || 0;
             
             return (
               <div key={type} className="p-2 bg-white rounded border min-w-0" title={typeInfo?.name}>
-                <div className="flex items-center gap-1 mb-1">
+                <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium text-gray-700">{typeInfo?.shortName || type}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className={`text-base font-bold font-mono ${typeSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`text-sm font-bold font-mono ${typeSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {typeSentiment >= 0 ? '+' : ''}{(typeSentiment * 100).toFixed(0)}%
                   </span>
-                  <SentimentBadge sentiment={typeSentiment} />
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-500 border-t border-gray-100 pt-1 mt-1">
+                  <span className="text-green-600">B:{formatVolume(buyVol)}</span>
+                  <span className="text-red-600">S:{formatVolume(sellVol)}</span>
                 </div>
               </div>
             );
