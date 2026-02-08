@@ -10,8 +10,8 @@ export const CLIENT_TYPES = {
   N: { id: 'N', name: 'Nostro', shortName: 'Nostro', description: 'נוסטרו', isSmartMoney: true },
   P: { id: 'P', name: 'Portfolio Managers', shortName: 'Portfolio', description: 'מנהל תיקים/לקוח מנוהל', isSmartMoney: true },
   O: { id: 'O', name: 'Foreign Investors', shortName: 'Foreign', description: 'תושב חוץ', isSmartMoney: true },
-  D: { id: 'D', name: 'Foreign Individual', shortName: 'Fgn Indiv', description: 'תושב חוץ - יחיד', isSmartMoney: false },
-  G: { id: 'G', name: 'Foreign Other', shortName: 'Fgn Other', description: 'תושב חוץ - אחר', isSmartMoney: false },
+  D: { id: 'D', name: 'Foreign Individual', shortName: 'Foreign Indiv', description: 'תושב חוץ - יחיד', isSmartMoney: false },
+  G: { id: 'G', name: 'Foreign Other', shortName: 'Foreign Other', description: 'תושב חוץ - אחר', isSmartMoney: false },
   E: { id: 'E', name: 'ETF/Market Maker', shortName: 'ETF/MM', description: 'קרן סל/עושה שוק', isSmartMoney: false },
   Z: { id: 'Z', name: 'Israeli Retail', shortName: 'IL Retail', description: 'משקיע ישראלי', isSmartMoney: false },
   A: { id: 'A', name: 'Israeli Individual', shortName: 'IL Indiv', description: 'תושב ישראל - יחיד', isSmartMoney: false },
@@ -512,6 +512,229 @@ export function buildIsinToSecurityMap(securitiesData) {
 }
 
 // ============================================================================
+// FOREIGN FLOW ANALYSIS (EDA Phase 1: Foreign Other (G) has +5.760% spread)
+// ============================================================================
+
+// Foreign investor types for separate tracking
+export const FOREIGN_FLOW_TYPE = 'G'; // Foreign Other - the USEFUL predictor
+
+/**
+ * EDA-derived constants for Foreign Other (G) predictive power
+ * Source: smart_money_eda.ipynb Section 9
+ */
+export const FOREIGN_FLOW_EDA = {
+  spread: 5.760,         // % quintile spread
+  bullWinRate: 52.3,     // % bull win rate
+  bearWinRate: 42.7,     // % bear win rate
+  correlation: 0.0126,   // correlation with 5-day forward returns
+  verdict: 'USEFUL',
+  // Multi-period analysis
+  periods: [
+    { days: 1,  spread: 12.429, corr: 0.0332 },
+    { days: 3,  spread: 5.849,  corr: 0.0145 },
+    { days: 5,  spread: 4.953,  corr: 0.0126 },
+    { days: 10, spread: 4.674,  corr: 0.0099 },
+    { days: 20, spread: 2.035,  corr: 0.0055 },
+  ],
+  // Correlation with smart money types (negative = contrarian)
+  correlations: {
+    F: -0.428, // Pension/Insurance - moderate negative
+    M: -0.362, // Mutual Funds - moderate negative
+    N: +0.023, // Nostro - weak positive
+    P: -0.150, // Portfolio Managers - weak negative
+  },
+  disagreementRate: 42.2, // % of days foreign vs local disagree
+};
+
+/**
+ * EDA-derived quintile boundaries and expected returns for smart money sentiment
+ * Source: smart_money_eda.ipynb Section 4 (Quintile Analysis)
+ */
+export const SENTIMENT_QUINTILES = [
+  { quintile: 'Q1', label: 'Most Bearish', min: -1.0,  max: -0.6, avgReturn: 0.071, winRate: 48.6 },
+  { quintile: 'Q2', label: 'Bearish',      min: -0.6,  max: -0.2, avgReturn: 0.068, winRate: 48.2 },
+  { quintile: 'Q3', label: 'Neutral',      min: -0.2,  max: 0.2,  avgReturn: 0.065, winRate: 47.8 },
+  { quintile: 'Q4', label: 'Bullish',      min: 0.2,   max: 0.6,  avgReturn: 0.068, winRate: 48.3 },
+  { quintile: 'Q5', label: 'Most Bullish', min: 0.6,   max: 1.0,  avgReturn: 0.066, winRate: 48.0 },
+];
+
+/**
+ * EDA-derived predictive quality rating for each investor type
+ * Source: smart_money_eda.ipynb Sections 4 & 9
+ */
+export const TYPE_PREDICTIVE_QUALITY = {
+  G: { quality: 'STRONG',   label: 'Strong Signal',   spread: 5.760,  color: 'green' },
+  F: { quality: 'MODERATE', label: 'Moderate Signal',  spread: null,   color: 'yellow' },
+  M: { quality: 'MODERATE', label: 'Moderate Signal',  spread: null,   color: 'yellow' },
+  N: { quality: 'MODERATE', label: 'Moderate Signal',  spread: null,   color: 'yellow' },
+  P: { quality: 'WEAK',     label: 'Weak Signal',      spread: null,   color: 'gray' },
+  O: { quality: 'WEAK',     label: 'Weak Signal',      spread: null,   color: 'gray' },
+};
+
+/**
+ * EDA-derived day-of-week foreign investor patterns
+ * Source: smart_money_eda.ipynb Section 9.5
+ */
+export const FOREIGN_DAY_OF_WEEK = {
+  0: { name: 'Sunday',    buyRatio: 46.1, note: 'Lowest foreign buy ratio' },
+  1: { name: 'Monday',    buyRatio: 47.6, note: null },
+  2: { name: 'Tuesday',   buyRatio: 47.0, note: null },
+  3: { name: 'Wednesday', buyRatio: 46.8, note: null },
+  4: { name: 'Thursday',  buyRatio: 47.1, note: 'Highest foreign volume day' },
+};
+
+/**
+ * Calculate Foreign Flow signal for type G (Foreign Other)
+ * EDA Finding: G has +5.760% predictive spread, 52.3% bull win rate
+ * @param {object} sentimentEntry - Aggregated sentiment entry (from aggregateSmartMoneyData)
+ * @returns {object|null} - Foreign flow signal analysis
+ */
+export function calculateForeignFlowSignal(sentimentEntry) {
+  if (!sentimentEntry || !sentimentEntry.byType) return null;
+  
+  const gData = sentimentEntry.byType[FOREIGN_FLOW_TYPE];
+  if (!gData) return null;
+  
+  const gSentiment = calculateSentiment(gData.buy, gData.sell);
+  if (gSentiment === null) return null;
+  
+  const smartMoneySentiment = sentimentEntry.smartMoneySentiment;
+  
+  // Determine direction
+  let direction = 'NEUTRAL';
+  if (gSentiment > 0.1) direction = 'BULLISH';
+  else if (gSentiment < -0.1) direction = 'BEARISH';
+  
+  // Determine strength
+  let strength = 'WEAK';
+  if (Math.abs(gSentiment) >= 0.7) strength = 'STRONG';
+  else if (Math.abs(gSentiment) >= 0.3) strength = 'MODERATE';
+  
+  // Check for contrarian signal (foreign vs smart money disagreement)
+  let isContrarian = false;
+  let contrarianDetail = null;
+  if (smartMoneySentiment !== null && smartMoneySentiment !== undefined) {
+    const smartMoneyDirection = smartMoneySentiment > 0.1 ? 1 : smartMoneySentiment < -0.1 ? -1 : 0;
+    const foreignDirection = gSentiment > 0.1 ? 1 : gSentiment < -0.1 ? -1 : 0;
+    
+    if (smartMoneyDirection !== 0 && foreignDirection !== 0 && smartMoneyDirection !== foreignDirection) {
+      isContrarian = true;
+      contrarianDetail = `Foreign investors are ${direction.toLowerCase()} while smart money is ${smartMoneySentiment > 0 ? 'bullish' : 'bearish'} (disagree ${FOREIGN_FLOW_EDA.disagreementRate}% of days historically)`;
+    }
+  }
+  
+  return {
+    sentiment: gSentiment,
+    direction,
+    strength,
+    buyVolume: gData.buy,
+    sellVolume: gData.sell,
+    isContrarian,
+    contrarianDetail,
+    eda: FOREIGN_FLOW_EDA,
+  };
+}
+
+/**
+ * Map a sentiment value to its EDA-derived quintile and expected return
+ * @param {number} sentiment - Sentiment score (-1 to 1)
+ * @returns {object} - Quintile info with expected return and win rate
+ */
+export function getSentimentQuintile(sentiment) {
+  if (sentiment === null || sentiment === undefined) {
+    return { quintile: 'N/A', label: 'No Data', avgReturn: 0, winRate: 0 };
+  }
+  
+  for (const q of SENTIMENT_QUINTILES) {
+    if (sentiment >= q.min && sentiment < q.max) {
+      return { ...q };
+    }
+  }
+  // Edge case: sentiment === 1.0
+  return { ...SENTIMENT_QUINTILES[SENTIMENT_QUINTILES.length - 1] };
+}
+
+/**
+ * Calculate weighted sentiment giving more weight to types with stronger predictive power
+ * EDA Finding: G (+0.0126 corr) outperforms baseline (-0.0000)
+ * @param {object} typeSentiments - Object mapping client type to sentiment
+ * @param {object} byType - Object mapping client type to {buy, sell}
+ * @returns {object} - Weighted sentiment analysis
+ */
+export function calculateWeightedSentiment(typeSentiments, byType) {
+  if (!typeSentiments) return { weightedSentiment: null, strongestType: null };
+  
+  // Weights based on EDA predictive quality (higher = more predictive)
+  const weights = { F: 1.0, M: 1.0, N: 1.0, P: 0.8, O: 0.5, G: 1.5 };
+  
+  let weightedSum = 0;
+  let totalWeight = 0;
+  let strongestType = null;
+  let strongestMagnitude = 0;
+  
+  const allTypes = [...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE];
+  
+  for (const type of allTypes) {
+    const sentiment = typeSentiments[type];
+    if (sentiment === undefined || sentiment === null) continue;
+    
+    const weight = weights[type] || 1.0;
+    weightedSum += sentiment * weight;
+    totalWeight += weight;
+    
+    // Track strongest signal (magnitude * quality weight)
+    const signalStrength = Math.abs(sentiment) * weight;
+    if (signalStrength > strongestMagnitude) {
+      strongestMagnitude = signalStrength;
+      strongestType = type;
+    }
+  }
+  
+  return {
+    weightedSentiment: totalWeight > 0 ? weightedSum / totalWeight : null,
+    strongestType,
+    strongestTypeName: strongestType ? (CLIENT_TYPES[strongestType]?.shortName || strongestType) : null,
+    strongestQuality: strongestType ? (TYPE_PREDICTIVE_QUALITY[strongestType] || null) : null,
+  };
+}
+
+/**
+ * Get day-of-week foreign investor context
+ * @param {string} dateStr - Date string (YYYY-MM-DD)
+ * @returns {object|null} - Day-of-week context or null
+ */
+export function getForeignDayContext(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ...
+  return FOREIGN_DAY_OF_WEEK[dayOfWeek] || null;
+}
+
+/**
+ * Check if date is in month-end rebalancing period
+ * EDA Finding: Foreign volume +11.1% higher during month-end (day >= 25)
+ * @param {string} dateStr - Date string (YYYY-MM-DD)
+ * @returns {object} - Month-end context
+ */
+export function getMonthEndContext(dateStr) {
+  if (!dateStr) return { isMonthEnd: false, isQuarterEnd: false };
+  const date = new Date(dateStr);
+  const dayOfMonth = date.getDate();
+  const month = date.getMonth() + 1; // 1-indexed
+  const isMonthEnd = dayOfMonth >= 25;
+  const isQuarterEnd = isMonthEnd && [3, 6, 9, 12].includes(month);
+  
+  return {
+    isMonthEnd,
+    isQuarterEnd,
+    volumeImpact: isMonthEnd ? '+11.1%' : null,
+    note: isMonthEnd 
+      ? 'Month-end period — foreign volume typically +11.1% higher due to portfolio rebalancing'
+      : null,
+  };
+}
+
+// ============================================================================
 // NEW FUNCTIONS BASED ON EDA FINDINGS
 // ============================================================================
 
@@ -521,7 +744,7 @@ export function buildIsinToSecurityMap(securitiesData) {
  * @param {object} typeSentiments - Object mapping client type to sentiment
  * @returns {object} - Consensus analysis
  */
-export function calculateConsensusScore(typeSentiments) {
+export function calculateConsensusScore(typeSentiments, includeForeignFlow = false) {
   if (!typeSentiments) {
     return {
       bullishCount: 0,
@@ -531,6 +754,7 @@ export function calculateConsensusScore(typeSentiments) {
       consensusLevel: 'UNKNOWN',
       dominantDirection: 'UNKNOWN',
       agreementRatio: 0,
+      foreignFlowIncluded: false,
     };
   }
   
@@ -538,7 +762,11 @@ export function calculateConsensusScore(typeSentiments) {
   let bearish = 0;
   let neutral = 0;
   
-  for (const type of SMART_MONEY_TYPES) {
+  const typesToCheck = includeForeignFlow 
+    ? [...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE]
+    : SMART_MONEY_TYPES;
+  
+  for (const type of typesToCheck) {
     const sentiment = typeSentiments[type];
     if (sentiment === undefined || sentiment === null) continue;
     
@@ -554,13 +782,17 @@ export function calculateConsensusScore(typeSentiments) {
   const totalTypes = bullish + bearish + neutral;
   const maxAgreement = Math.max(bullish, bearish, neutral);
   
-  // Determine consensus level
+  // Determine consensus level (thresholds adjust when foreign flow included)
+  const unanimousThreshold = includeForeignFlow ? 6 : 5;
+  const strongThreshold = includeForeignFlow ? 5 : 4;
+  const moderateThreshold = includeForeignFlow ? 4 : 3;
+  
   let consensusLevel = 'WEAK';
-  if (maxAgreement >= 5) {
+  if (maxAgreement >= unanimousThreshold) {
     consensusLevel = 'UNANIMOUS';
-  } else if (maxAgreement >= 4) {
+  } else if (maxAgreement >= strongThreshold) {
     consensusLevel = 'STRONG';
-  } else if (maxAgreement >= 3) {
+  } else if (maxAgreement >= moderateThreshold) {
     consensusLevel = 'MODERATE';
   }
   
@@ -582,6 +814,7 @@ export function calculateConsensusScore(typeSentiments) {
     consensusLevel,
     dominantDirection,
     agreementRatio: totalTypes > 0 ? maxAgreement / totalTypes : 0,
+    foreignFlowIncluded: includeForeignFlow,
   };
 }
 
@@ -794,15 +1027,26 @@ export function getEnhancedAlertLevel(sentiment, pattern) {
     };
   }
   
-  // BULLISH (TEAL): Strong positive with volume confirmation
-  // EDA showed volume spike + bullish = 50.4% win rate (above baseline)
-  if (sentiment > 0.5 && hasVolumeSpike) {
+  // BULLISH_VOLUME (TEAL): Volume spike + bullish sentiment
+  // EDA showed this combo improves win rate to 50.4% (vs 47.8% baseline)
+  if (sentiment > 0.3 && hasVolumeSpike) {
     return {
       level: 'BULLISH',
       color: 'TEAL',
-      reason: 'Strong institutional buying with volume confirmation',
-      action: 'Potential opportunity',
+      reason: 'Volume spike with bullish sentiment — historically wins 50.4% (vs 47.8% baseline)',
+      action: 'Potential opportunity — volume confirms buying pressure',
       confidence: 'MODERATE',
+    };
+  }
+  
+  // BULLISH (TEAL): Strong positive even without volume spike
+  if (sentiment > 0.5) {
+    return {
+      level: 'BULLISH',
+      color: 'TEAL',
+      reason: 'Strong institutional buying pressure',
+      action: 'Potential opportunity',
+      confidence: 'LOW',
     };
   }
   

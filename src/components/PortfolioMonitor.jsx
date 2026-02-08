@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Activity, AlertTriangle, Search, Plus, X, RefreshCw, TrendingUp, TrendingDown, Users, Zap, AlertCircle, CheckCircle, Clock, BarChart2, Shield, Filter, ArrowUpDown } from 'lucide-react';
+import { Activity, AlertTriangle, Search, Plus, X, RefreshCw, TrendingUp, TrendingDown, Users, Zap, AlertCircle, CheckCircle, Clock, BarChart2, Shield, Filter, ArrowUpDown, Globe, ArrowLeftRight } from 'lucide-react';
 import { useDataStore } from '../hooks/useDataStore';
-import { getSentimentAlertLevel, CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAlertLevel, calculatePatternStrength, calculateConsensusScore } from '../lib/smartMoney';
+import { getSentimentAlertLevel, CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAlertLevel, calculatePatternStrength, calculateConsensusScore, calculateForeignFlowSignal, FOREIGN_FLOW_TYPE, TYPE_PREDICTIVE_QUALITY } from '../lib/smartMoney';
 import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
 import LoadingSpinner, { ButtonSpinner } from './LoadingSpinner';
 
@@ -118,6 +118,9 @@ export default function PortfolioMonitor() {
         ? calculateConsensusScore(sentiment.typeSentiments)
         : null;
       
+      // Foreign flow signal
+      const foreignFlow = sentiment ? calculateForeignFlowSignal(sentiment) : null;
+      
       const item = {
         isin: isinClean,
         symbol: secInfo?.symbol || isinClean.substring(0, 8),
@@ -130,6 +133,7 @@ export default function PortfolioMonitor() {
         patternOutcomes,
         patternStrength,
         consensus,
+        foreignFlow,
         date: scanDate,
       };
       
@@ -231,7 +235,7 @@ export default function PortfolioMonitor() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Portfolio Monitor</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Portfolio Monitor</h2>
           <p className="text-gray-600 mt-1">
             Scan positions for institutional sentiment alerts
           </p>
@@ -255,8 +259,8 @@ export default function PortfolioMonitor() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Portfolio Input */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Portfolio Positions</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Portfolio Positions</h3>
           
           {/* Session Trader Display */}
           <div className="mb-4">
@@ -325,8 +329,8 @@ export default function PortfolioMonitor() {
         </div>
 
         {/* Scan Settings */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Scan Settings</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Scan Settings</h3>
           
           {/* Current Date Display */}
           {currentDate && (
@@ -356,9 +360,9 @@ export default function PortfolioMonitor() {
         </div>
 
         {/* Summary */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
           <div className="flex items-center gap-2 mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Scan Summary</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Scan Summary</h3>
             <InfoTooltip title="Scan Summary" position="bottom">
               Overview of your portfolio's smart money sentiment. Securities are categorized by alert level based on institutional trading patterns and sentiment analysis.
             </InfoTooltip>
@@ -436,7 +440,7 @@ export default function PortfolioMonitor() {
 
       {/* Filter & Sort Controls */}
       {sentimentScan && (
-        <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             {/* Filter by Alert Level */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -533,10 +537,10 @@ function SentimentAlertCard({ item }) {
   const hasConsensus = item.consensus?.totalTypes > 0;
   
   const categoryColors = {
-    HIGH: { bg: 'bg-red-50', border: 'border-red-200', badge: 'bg-red-500' },
-    MEDIUM: { bg: 'bg-yellow-50', border: 'border-yellow-200', badge: 'bg-yellow-500' },
-    BULLISH: { bg: 'bg-teal-50', border: 'border-teal-200', badge: 'bg-teal-500' },
-    CLEAR: { bg: 'bg-green-50', border: 'border-green-200', badge: 'bg-green-500' },
+    HIGH: { bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-700', badge: 'bg-red-500' },
+    MEDIUM: { bg: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-700', badge: 'bg-yellow-500' },
+    BULLISH: { bg: 'bg-teal-50 dark:bg-teal-900/20', border: 'border-teal-200 dark:border-teal-700', badge: 'bg-teal-500' },
+    CLEAR: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-700', badge: 'bg-green-500' },
   };
   
   const colors = categoryColors[item.category] || categoryColors.CLEAR;
@@ -550,7 +554,7 @@ function SentimentAlertCard({ item }) {
             <span className={`px-2 py-0.5 rounded text-xs font-bold text-white ${colors.badge}`}>
               {item.category}
             </span>
-            <p className="font-semibold text-gray-900 truncate">{item.symbol}</p>
+            <p className="font-semibold text-gray-900 dark:text-white truncate">{item.symbol}</p>
           </div>
           {item.companyName && (
             <p className="text-xs text-gray-500 truncate mt-1">{item.companyName}</p>
@@ -647,47 +651,85 @@ function SentimentAlertCard({ item }) {
         </div>
       )}
       
-      {/* Historical Pattern Outcomes */}
+      {/* Foreign Flow Signal */}
+      {item.foreignFlow && (
+        <div className={`mb-3 p-2 rounded-lg border text-xs ${
+          item.foreignFlow.isContrarian 
+            ? 'bg-amber-50 border-amber-300' 
+            : 'bg-cyan-50 border-cyan-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <Globe className="w-3 h-3 text-cyan-600" />
+              <span className="font-medium text-gray-700">Foreign (G):</span>
+              <span className={`font-bold ${item.foreignFlow.sentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {item.foreignFlow.sentiment >= 0 ? '+' : ''}{(item.foreignFlow.sentiment * 100).toFixed(0)}%
+              </span>
+            </div>
+            <span className={`px-2.5 py-0.5 rounded text-sm font-medium text-white ${
+              item.foreignFlow.direction === 'BULLISH' ? 'bg-cyan-600' :
+              item.foreignFlow.direction === 'BEARISH' ? 'bg-orange-600' : 'bg-gray-500'
+            }`}>
+              {item.foreignFlow.direction}
+            </span>
+          </div>
+          {item.foreignFlow.isContrarian && (
+            <div className="mt-1 flex items-center gap-1 text-amber-700">
+              <ArrowLeftRight className="w-3 h-3" />
+              <span className="font-medium">Contrarian — disagrees with smart money</span>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Historical Pattern Outcomes (Phase 3.2: more prominent) */}
       {hasOutcomes && (
         <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-center gap-1 mb-1">
-            <p className="text-xs font-medium text-amber-800">Historical</p>
+            <p className="text-xs font-medium text-amber-800">Historical Outcomes</p>
             <InfoTooltip title={METRIC_EXPLANATIONS.similarPatterns.title} position="top">
               {METRIC_EXPLANATIONS.similarPatterns.description}
             </InfoTooltip>
           </div>
           <div className="flex items-center gap-3 text-xs">
             <span className="text-gray-600">
-              {item.patternOutcomes.totalPatterns} similar
+              {item.patternOutcomes.totalPatterns} similar patterns
             </span>
-            <span className="text-red-600">
+            <span className="text-red-600 font-medium">
               {item.patternOutcomes.declineRate.toFixed(0)}% declined
+            </span>
+            <span className={`font-medium ${item.patternOutcomes.avgChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              Avg: {item.patternOutcomes.avgChange >= 0 ? '+' : ''}{item.patternOutcomes.avgChange.toFixed(1)}%
             </span>
           </div>
         </div>
       )}
       
-      {/* Investor Type Breakdown */}
+      {/* Investor Type Breakdown (includes G type) */}
       {item.typeSentiments && (
-        <div className="grid grid-cols-5 gap-1 text-center">
-          {SMART_MONEY_TYPES.map(type => {
+        <div className="grid grid-cols-6 gap-1 text-center">
+          {[...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE].map(type => {
             const typeSentiment = item.typeSentiments[type];
             const typeInfo = CLIENT_TYPES[type];
+            const isForeign = type === FOREIGN_FLOW_TYPE;
             
             if (typeSentiment === undefined || typeSentiment === null) return (
-              <div key={type} className="p-1 bg-white dark:bg-gray-800 rounded" title={typeInfo?.name}>
-                <p className="text-[10px] text-gray-400">{typeInfo?.shortName || type}</p>
-                <p className="text-xs text-gray-300 dark:text-gray-600">-</p>
+              <div key={type} className="p-2 bg-white dark:bg-gray-800 rounded" title={typeInfo?.name}>
+                <p className="text-sm text-gray-400">{typeInfo?.shortName || type}</p>
+                <p className="text-sm text-gray-300 dark:text-gray-600">-</p>
               </div>
             );
             
             return (
-              <div key={type} className={`p-1 rounded ${
-                typeSentiment >= 0.3 ? 'bg-green-100' : 
-                typeSentiment <= -0.3 ? 'bg-red-100' : 'bg-white'
+              <div key={type} className={`p-2 rounded ${
+                isForeign ? 'bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-700' :
+                typeSentiment >= 0.3 ? 'bg-green-100 dark:bg-green-900/30' : 
+                typeSentiment <= -0.3 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-white dark:bg-gray-800'
               }`} title={typeInfo?.name}>
-                <p className="text-[10px] text-gray-500">{typeInfo?.shortName || type}</p>
-                <p className={`text-xs font-medium ${
+                <p className={`text-sm ${isForeign ? 'text-cyan-600 font-medium' : 'text-gray-500'}`}>
+                  {typeInfo?.shortName || type}
+                </p>
+                <p className={`text-base font-semibold ${
                   typeSentiment >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {(typeSentiment * 100).toFixed(0)}%

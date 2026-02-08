@@ -125,6 +125,14 @@ export const METRIC_EXPLANATIONS = {
     title: 'Foreign Investors (O)',
     description: 'International institutional investors. Their activity can indicate global capital flows and foreign sentiment on Israeli securities.',
   },
+  clientTypeG: {
+    title: 'Foreign Other (G)',
+    description: 'Foreign non-individual investors (corporations, funds, etc.). EDA finding: This type has the strongest predictive power with a +5.760% quintile spread, 52.3% bull win rate, and +0.0126 correlation with 5-day forward returns. Acts as a contrarian indicator vs local institutions (42.2% disagreement rate).',
+  },
+  clientTypeD: {
+    title: 'Foreign Individual (D)',
+    description: 'Foreign individual investors. Has some correlation with Foreign Other (G) but lower predictive power. Useful mainly as a confirmation signal alongside Foreign Other.',
+  },
   
   // Sentiment & patterns
   sentiment: {
@@ -182,5 +190,53 @@ export const METRIC_EXPLANATIONS = {
   trafficLight: {
     title: 'Traffic Light Signal',
     description: 'Quick trade recommendation based on your intended action vs institutional sentiment. GREEN = aligned, YELLOW = mixed signals, RED = opposing sentiment.',
+  },
+  
+  // Foreign Flow (Phase 1)
+  foreignFlow: {
+    title: 'Foreign Flow Signal (G)',
+    description: 'Sentiment from Foreign Other (G) investors. EDA found this type has a +5.760% predictive spread — the strongest of any investor type. Bullish foreign flow historically leads to 52.3% win rate on 5-day forward returns. Strongest at 1-day horizon (+12.4% spread).',
+  },
+  contrarianSignal: {
+    title: 'Contrarian Signal',
+    description: 'Foreign Other (G) and local smart money disagree on direction. This happens ~42.2% of the time. Foreign (G) has negative correlation with Pension (-0.428) and Mutual Funds (-0.362), meaning they often take opposite positions.',
+  },
+  foreignFlowSummary: {
+    title: 'Foreign Flow Summary',
+    description: 'Portfolio-wide breakdown of Foreign Other (G) sentiment. Shows how many securities have bullish, bearish, or neutral foreign flow, plus how many have contrarian signals (foreign vs smart money disagree).',
+  },
+  
+  // Predictive Metrics (Phase 2)
+  expectedReturn: {
+    title: 'Expected Return (EDA Quintile)',
+    description: 'Maps the current sentiment score to one of 5 quintiles (Q1=most bearish to Q5=most bullish) based on EDA analysis. Shows the historical average 5-day return and win rate when sentiment was in this quintile.',
+  },
+  signalHorizon: {
+    title: 'Signal Horizon',
+    description: 'Shows how the Foreign Other (G) predictive spread changes across time horizons. 1-day is strongest (+12.4%), weakening to +2.0% at 20 days. Use this to guide trade timing — shorter horizons benefit more from this signal.',
+  },
+  signalQuality: {
+    title: 'Signal Quality',
+    description: 'Predictive power rating per investor type based on EDA analysis. STRONG = high predictive spread and correlation (e.g., Foreign Other G). MODERATE = some predictive value (e.g., Pension, Mutual Funds). WEAK = low predictive value.',
+  },
+  
+  // Weighted Sentiment (Phase 5)
+  weightedSentiment: {
+    title: 'Weighted Sentiment',
+    description: 'Sentiment score where each investor type is weighted by its EDA-derived predictive power. Foreign Other (G) gets 1.5x weight due to its +5.760% spread and +0.0126 correlation. Portfolio Managers (P) gets 0.8x weight. Compare with equal-weighted sentiment to see the impact.',
+  },
+  strongestPredictor: {
+    title: 'Strongest Predictor',
+    description: 'The investor type with the most informative signal right now — based on both its current sentiment magnitude and its historical predictive quality. A strong signal from a high-quality type (like G) is more meaningful than from a lower-quality type.',
+  },
+  
+  // Seasonality (Phase 4)
+  dayOfWeek: {
+    title: 'Day-of-Week Context',
+    description: 'EDA found foreign investors trade differently by day of week. Sunday has the lowest buy ratio (46.1%), while Thursday has the highest volume. This is informational context, not a primary trading signal.',
+  },
+  monthEnd: {
+    title: 'Month-End Rebalancing',
+    description: 'During month-end (day >= 25), foreign trading volume is typically 11.1% higher due to portfolio rebalancing. Quarter-end effects are even more pronounced. Volume context helps interpret sentiment signals.',
   },
 };

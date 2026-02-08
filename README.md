@@ -32,7 +32,7 @@ npm install
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`
+The app will be available at `https://investor-comparison-tool.vercel.app/`
 
 ### Data Files
 
@@ -323,12 +323,4 @@ The selected date may not have trading data. Try a different date within the ava
 - Progress is shown during loading
 - Consider using a subset of data for testing
 
----
 
-## License
-
-Proprietary - Menora Mivtachim
-
-## Support
-
-For support, contact the development team.

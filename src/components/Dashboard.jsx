@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useDataStore } from '../hooks/useDataStore';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Target, BarChart3, Users, Info, Activity, Zap, CheckCircle, XCircle, AlertTriangle, AlertCircle, Shield, Clock, Eye } from 'lucide-react';
-import { CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAlertLevel, calculatePatternStrength, calculateConsensusScore, getSentimentLevel } from '../lib/smartMoney';
+import { TrendingUp, TrendingDown, Target, BarChart3, Users, Info, Activity, Zap, CheckCircle, XCircle, AlertTriangle, AlertCircle, Shield, Clock, Eye, Globe, ArrowLeftRight, Star } from 'lucide-react';
+import { CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAlertLevel, calculatePatternStrength, calculateConsensusScore, getSentimentLevel, calculateForeignFlowSignal, calculateWeightedSentiment, FOREIGN_FLOW_TYPE, FOREIGN_FLOW_EDA, TYPE_PREDICTIVE_QUALITY } from '../lib/smartMoney';
 import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
 
 const COLORS = {
@@ -43,7 +43,15 @@ export default function Dashboard() {
     let totalSentiment = 0;
     let sentimentCount = 0;
     const clientTypeTotals = {};
-    SMART_MONEY_TYPES.forEach(t => clientTypeTotals[t] = { total: 0, count: 0 });
+    [...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE].forEach(t => clientTypeTotals[t] = { total: 0, count: 0 });
+    
+    // Foreign flow tracking
+    let foreignFlowBullish = 0;
+    let foreignFlowBearish = 0;
+    let foreignFlowNeutral = 0;
+    let contrarianCount = 0;
+    let totalWeightedSentiment = 0;
+    let weightedSentimentCount = 0;
     
     for (const isin of portfolio) {
       const sentiment = getSmartMoneySentiment(isin, sessionDate);
@@ -55,6 +63,14 @@ export default function Dashboard() {
       const patternStrength = calculatePatternStrength(pattern, sentiment?.smartMoneySentiment);
       const consensus = sentiment?.typeSentiments 
         ? calculateConsensusScore(sentiment.typeSentiments)
+        : null;
+      
+      // Foreign flow signal
+      const foreignFlow = sentiment ? calculateForeignFlowSignal(sentiment) : null;
+      
+      // Weighted sentiment
+      const weighted = sentiment?.typeSentiments 
+        ? calculateWeightedSentiment(sentiment.typeSentiments, sentiment.byType)
         : null;
       
       const item = {
@@ -69,6 +85,8 @@ export default function Dashboard() {
         patternOutcomes,
         patternStrength,
         consensus,
+        foreignFlow,
+        weighted,
       };
       
       // Check both if sentiment exists AND has valid data
@@ -81,9 +99,23 @@ export default function Dashboard() {
       totalSentiment += sentiment.smartMoneySentiment;
       sentimentCount++;
       
-      // Accumulate client type sentiments
+      // Accumulate foreign flow stats
+      if (foreignFlow) {
+        if (foreignFlow.direction === 'BULLISH') foreignFlowBullish++;
+        else if (foreignFlow.direction === 'BEARISH') foreignFlowBearish++;
+        else foreignFlowNeutral++;
+        if (foreignFlow.isContrarian) contrarianCount++;
+      }
+      
+      // Accumulate weighted sentiment
+      if (weighted?.weightedSentiment !== null && weighted?.weightedSentiment !== undefined) {
+        totalWeightedSentiment += weighted.weightedSentiment;
+        weightedSentimentCount++;
+      }
+      
+      // Accumulate client type sentiments (including G for foreign flow)
       if (sentiment.typeSentiments) {
-        SMART_MONEY_TYPES.forEach(type => {
+        [...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE].forEach(type => {
           const typeSentiment = sentiment.typeSentiments[type];
           if (typeSentiment !== undefined && typeSentiment !== null) {
             clientTypeTotals[type].total += typeSentiment;
@@ -116,7 +148,7 @@ export default function Dashboard() {
     
     // Calculate client type averages
     const clientTypeAvg = {};
-    SMART_MONEY_TYPES.forEach(type => {
+    [...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE].forEach(type => {
       if (clientTypeTotals[type].count > 0) {
         clientTypeAvg[type] = clientTypeTotals[type].total / clientTypeTotals[type].count;
       }
@@ -126,6 +158,7 @@ export default function Dashboard() {
       totalSecurities: portfolio.length,
       withData: sentimentCount,
       avgSentiment: sentimentCount > 0 ? totalSentiment / sentimentCount : 0,
+      avgWeightedSentiment: weightedSentimentCount > 0 ? totalWeightedSentiment / weightedSentimentCount : 0,
       redAlerts,
       yellowAlerts,
       tealAlerts,
@@ -134,6 +167,13 @@ export default function Dashboard() {
       clientTypeAvg,
       patternAlerts: redAlerts.filter(a => a.pattern?.flagged).length + 
                      yellowAlerts.filter(a => a.pattern?.flagged).length,
+      foreignFlow: {
+        bullish: foreignFlowBullish,
+        bearish: foreignFlowBearish,
+        neutral: foreignFlowNeutral,
+        contrarianSignals: contrarianCount,
+        total: foreignFlowBullish + foreignFlowBearish + foreignFlowNeutral,
+      },
     };
   }, [smartMoneyLoaded, processedData, selectedTrader, sessionDate, getSmartMoneySentiment, detectSmartMoneyPattern, getPatternOutcomes, isinToSecurity]);
 
@@ -260,6 +300,77 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Foreign Flow Summary & Weighted Sentiment (Phase 1 & 5) */}
+      {portfolioAnalysis && portfolioAnalysis.foreignFlow.total > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Foreign Flow Overview */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-5 h-5 text-cyan-600" />
+              <h3 className="font-semibold text-gray-900 dark:text-white">Foreign Flow (G) Summary</h3>
+              <InfoTooltip title={METRIC_EXPLANATIONS.foreignFlowSummary?.title || 'Foreign Flow Summary'} position="right">
+                {METRIC_EXPLANATIONS.foreignFlowSummary?.description || 'Portfolio-wide breakdown of Foreign Other (G) sentiment across your securities.'}
+              </InfoTooltip>
+              <span className="text-sm px-2.5 py-0.5 rounded bg-cyan-100 text-cyan-700 font-medium">EDA: +5.76% spread</span>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                <p className="text-xl font-bold text-green-600">{portfolioAnalysis.foreignFlow.bullish}</p>
+                <p className="text-xs text-green-700">Bullish</p>
+              </div>
+              <div className="text-center p-2 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                <p className="text-xl font-bold text-red-600">{portfolioAnalysis.foreignFlow.bearish}</p>
+                <p className="text-xs text-red-700">Bearish</p>
+              </div>
+              <div className="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <p className="text-xl font-bold text-gray-600 dark:text-gray-300">{portfolioAnalysis.foreignFlow.neutral}</p>
+                <p className="text-xs text-gray-500">Neutral</p>
+              </div>
+            </div>
+            
+            {portfolioAnalysis.foreignFlow.contrarianSignals > 0 && (
+              <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4 text-amber-600" />
+                <span className="text-xs text-amber-800 dark:text-amber-300">
+                  <strong>{portfolioAnalysis.foreignFlow.contrarianSignals}</strong> contrarian signals — foreign vs smart money disagree
+                </span>
+              </div>
+            )}
+          </div>
+          
+          {/* Weighted Sentiment */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Star className="w-5 h-5 text-purple-500" />
+              <h3 className="font-semibold text-gray-900 dark:text-white">Weighted Portfolio Sentiment</h3>
+              <InfoTooltip title={METRIC_EXPLANATIONS.weightedSentiment?.title || 'Weighted Sentiment'} position="right">
+                {METRIC_EXPLANATIONS.weightedSentiment?.description || 'Sentiment weighted by EDA-derived predictive power per investor type.'}
+              </InfoTooltip>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Equal-Weighted</p>
+                <p className={`text-2xl font-bold ${portfolioAnalysis.avgSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {portfolioAnalysis.avgSentiment >= 0 ? '+' : ''}{(portfolioAnalysis.avgSentiment * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">EDA-Weighted</p>
+                <p className={`text-2xl font-bold ${portfolioAnalysis.avgWeightedSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {portfolioAnalysis.avgWeightedSentiment >= 0 ? '+' : ''}{(portfolioAnalysis.avgWeightedSentiment * 100).toFixed(1)}%
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-3">
+              EDA-weighted gives higher weight to Foreign Other (G) based on its +5.760% predictive spread and stronger correlation with returns.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Critical Alerts & Bullish Signals Row */}
       {portfolioAnalysis && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -334,22 +445,29 @@ export default function Dashboard() {
             Average sentiment by institutional investor type across your portfolio
           </p>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {SMART_MONEY_TYPES.map(type => {
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {[...SMART_MONEY_TYPES, FOREIGN_FLOW_TYPE].map(type => {
               const avgSentiment = portfolioAnalysis.clientTypeAvg[type];
               if (avgSentiment === undefined) return null;
               
               const typeInfo = CLIENT_TYPES[type];
               const typeExplanation = METRIC_EXPLANATIONS[`clientType${type}`];
+              const quality = TYPE_PREDICTIVE_QUALITY[type];
+              const isForeign = type === FOREIGN_FLOW_TYPE;
               
               return (
                 <div key={type} className={`p-3 sm:p-4 rounded-lg border-2 ${
-                  avgSentiment >= 0.1 ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' :
-                  avgSentiment <= -0.1 ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700' :
-                  'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
+                  isForeign 
+                    ? 'bg-cyan-50 dark:bg-cyan-900/30 border-cyan-300 dark:border-cyan-700'
+                    : avgSentiment >= 0.1 ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' :
+                      avgSentiment <= -0.1 ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700' :
+                      'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
                 }`} title={typeInfo?.name}>
                   <div className="flex items-center gap-1 mb-1">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{typeInfo?.shortName || type}</p>
+                    {isForeign && <Globe className="w-3 h-3 text-cyan-600" />}
+                    <p className={`text-xs ${isForeign ? 'text-cyan-700 dark:text-cyan-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {typeInfo?.shortName || type}
+                    </p>
                     {typeExplanation && (
                       <InfoTooltip title={typeExplanation.title} position="bottom">
                         {typeExplanation.description}
@@ -361,9 +479,20 @@ export default function Dashboard() {
                   }`}>
                     {avgSentiment >= 0 ? '+' : ''}{(avgSentiment * 100).toFixed(0)}%
                   </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {avgSentiment >= 0.3 ? 'Buying' : avgSentiment <= -0.3 ? 'Selling' : 'Neutral'}
-                  </p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {avgSentiment >= 0.3 ? 'Buying' : avgSentiment <= -0.3 ? 'Selling' : 'Neutral'}
+                    </p>
+                    {quality && (
+                      <span className={`text-sm px-2 py-0.5 rounded font-medium ${
+                        quality.quality === 'STRONG' ? 'bg-green-100 text-green-700' :
+                        quality.quality === 'MODERATE' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>
+                        {quality.label}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -598,7 +727,7 @@ export default function Dashboard() {
 
       {/* Per-Trader Comparison (if multiple traders) */}
       {selectedTrader === 'all' && traderStats && Object.keys(traderStats).length > 1 && (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <Users className="w-6 h-6 text-blue-500" />
             <h3 className="text-lg font-semibold text-gray-900">Trader Overview</h3>
