@@ -275,10 +275,10 @@ export default function Dashboard() {
           />
           <MetricCard
             icon={Activity}
-            label="Portfolio Sentiment"
-            value={`${portfolioAnalysis.avgSentiment >= 0 ? '+' : ''}${(portfolioAnalysis.avgSentiment * 100).toFixed(1)}%`}
-            subtext={portfolioAnalysis.avgSentiment >= 0.1 ? 'Bullish bias' : portfolioAnalysis.avgSentiment <= -0.1 ? 'Bearish bias' : 'Neutral'}
-            color={portfolioAnalysis.avgSentiment >= 0 ? 'green' : 'red'}
+            label="EDA-Weighted Sentiment"
+            value={`${portfolioAnalysis.avgWeightedSentiment >= 0 ? '+' : ''}${(portfolioAnalysis.avgWeightedSentiment * 100).toFixed(1)}%`}
+            subtext={portfolioAnalysis.avgWeightedSentiment >= 0.1 ? 'Bullish bias' : portfolioAnalysis.avgWeightedSentiment <= -0.1 ? 'Bearish bias' : 'Neutral'}
+            color={portfolioAnalysis.avgWeightedSentiment >= 0 ? 'green' : 'red'}
             explanation={METRIC_EXPLANATIONS.portfolioSentiment}
           />
           <MetricCard
@@ -339,11 +339,12 @@ export default function Dashboard() {
             )}
           </div>
           
-          {/* Weighted Sentiment */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 p-5">
+          {/* Weighted Sentiment — Primary Portfolio Signal */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-2 border-purple-300 dark:border-purple-700 p-5">
             <div className="flex items-center gap-2 mb-3">
               <Star className="w-5 h-5 text-purple-500" />
-              <h3 className="font-semibold text-gray-900 dark:text-white">Weighted Portfolio Sentiment</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">EDA-Weighted Portfolio Sentiment</h3>
+              <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 uppercase tracking-wide">Primary</span>
               <InfoTooltip title={METRIC_EXPLANATIONS.weightedSentiment?.title || 'Weighted Sentiment'} position="right">
                 {METRIC_EXPLANATIONS.weightedSentiment?.description || 'Sentiment weighted by EDA-derived predictive power per investor type.'}
               </InfoTooltip>
@@ -351,21 +352,21 @@ export default function Dashboard() {
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Equal-Weighted</p>
-                <p className={`text-2xl font-bold ${portfolioAnalysis.avgSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {portfolioAnalysis.avgSentiment >= 0 ? '+' : ''}{(portfolioAnalysis.avgSentiment * 100).toFixed(1)}%
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">EDA-Weighted (Primary)</p>
+                <p className={`text-2xl font-bold ${portfolioAnalysis.avgWeightedSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {portfolioAnalysis.avgWeightedSentiment >= 0 ? '+' : ''}{(portfolioAnalysis.avgWeightedSentiment * 100).toFixed(1)}%
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">EDA-Weighted</p>
-                <p className={`text-2xl font-bold ${portfolioAnalysis.avgWeightedSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {portfolioAnalysis.avgWeightedSentiment >= 0 ? '+' : ''}{(portfolioAnalysis.avgWeightedSentiment * 100).toFixed(1)}%
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Raw Composite</p>
+                <p className={`text-lg font-bold ${portfolioAnalysis.avgSentiment >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {portfolioAnalysis.avgSentiment >= 0 ? '+' : ''}{(portfolioAnalysis.avgSentiment * 100).toFixed(1)}%
                 </p>
               </div>
             </div>
             
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-3">
-              EDA-weighted gives higher weight to Foreign Other (G) based on its +5.760% predictive spread and stronger correlation with returns.
+              EDA-weighted prioritizes Foreign Other (G) based on its +5.760% predictive spread. This drives the traffic light decisions.
             </p>
           </div>
         </div>

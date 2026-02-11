@@ -64,9 +64,15 @@ export function getSentimentAlertLevel(sentiment) {
  * @param {number|null} institutionalSentiment - Combined institutional sentiment
  * @returns {object} - { color: 'GREEN'|'YELLOW'|'RED'|'GRAY', label, recommendation }
  */
-export function getTrafficLight(isBuy, institutionalSentiment) {
+export function getTrafficLight(isBuy, institutionalSentiment, weightedSentiment = null) {
+  // Use EDA-weighted sentiment as primary signal when available (aligns with EDA insights)
+  // Falls back to raw composite if weighted is not provided
+  const primarySentiment = (weightedSentiment !== null && weightedSentiment !== undefined)
+    ? weightedSentiment
+    : institutionalSentiment;
+
   // Check for no data case
-  if (institutionalSentiment === null || institutionalSentiment === undefined) {
+  if (primarySentiment === null || primarySentiment === undefined) {
     return {
       color: 'GRAY',
       label: 'No Data',
@@ -76,28 +82,28 @@ export function getTrafficLight(isBuy, institutionalSentiment) {
   }
   
   const userDirection = isBuy ? 1 : -1;
-  const alignment = userDirection * institutionalSentiment;
+  const alignment = userDirection * primarySentiment;
   
   if (alignment > 0.3) {
     return {
       color: 'GREEN',
       label: 'Aligned',
       recommendation: 'PROCEED',
-      message: 'Your trade direction matches smart money sentiment',
+      message: 'Your trade direction aligns with EDA-weighted institutional sentiment',
     };
   } else if (alignment > -0.3) {
     return {
       color: 'YELLOW',
       label: 'Mixed',
       recommendation: 'ADJUST',
-      message: 'Mixed signals from institutional investors',
+      message: 'Mixed signals from EDA-weighted institutional analysis',
     };
   } else {
     return {
       color: 'RED',
       label: 'Counter',
       recommendation: 'RECONSIDER',
-      message: 'Your trade opposes smart money sentiment',
+      message: 'Your trade opposes EDA-weighted institutional sentiment',
     };
   }
 }

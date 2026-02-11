@@ -136,6 +136,7 @@ export default function TradeChecker() {
       
       // Add to history only if there's valid sentiment data
       if (hasValidSentiment) {
+        const histWeighted = calculateWeightedSentiment(sentiment.typeSentiments, sentiment.byType);
         setHistory(prev => [{
           isin: cleanIsin,
           symbol: secInfo?.symbol || cleanIsin.substring(0, 8),
@@ -143,7 +144,7 @@ export default function TradeChecker() {
           date: currentDate,
           timestamp: new Date().toLocaleTimeString(),
           smartMoneySentiment: sentiment.smartMoneySentiment,
-          trafficLight: getTrafficLight(action === 'buy', sentiment.smartMoneySentiment),
+          trafficLight: getTrafficLight(action === 'buy', sentiment.smartMoneySentiment, histWeighted.weightedSentiment),
         }, ...prev.slice(0, 9)]);
       }
     } else {
@@ -439,7 +440,9 @@ function TrafficLightMini({ color }) {
  * Smart Money Sentiment Card with Traffic Light
  */
 function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, historicalContext }) {
-  const trafficLight = getTrafficLight(isBuy, sentimentData.smartMoneySentiment);
+  // Use EDA-weighted sentiment as primary signal (aligns with EDA insights: Foreign G is strongest predictor)
+  const weightedValue = historicalContext?.weighted?.weightedSentiment;
+  const trafficLight = getTrafficLight(isBuy, sentimentData.smartMoneySentiment, weightedValue);
   
   const trafficColors = {
     GREEN: {
@@ -567,18 +570,19 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
           </div>
         )}
         
-        {/* Weighted Sentiment & Strongest Predictor (Phase 5) */}
+        {/* EDA-Weighted Sentiment — PRIMARY SIGNAL (drives the traffic light) */}
         {historicalContext?.weighted?.weightedSentiment !== null && historicalContext?.weighted?.weightedSentiment !== undefined && (
-          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-700">
+          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-purple-400 dark:border-purple-600">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-base font-medium text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
-                <Star className="w-4 h-4 text-purple-500" />
-                Weighted Sentiment
+              <span className="text-base font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                <Star className="w-5 h-5 text-purple-500" />
+                EDA-Weighted Sentiment
+                <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 uppercase tracking-wide">Primary</span>
                 <InfoTooltip title={METRIC_EXPLANATIONS.weightedSentiment.title} position="bottom">
                   {METRIC_EXPLANATIONS.weightedSentiment.description}
                 </InfoTooltip>
               </span>
-              <span className={`text-lg font-bold font-mono ${
+              <span className={`text-xl font-bold font-mono ${
                 historicalContext.weighted.weightedSentiment >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
                 {historicalContext.weighted.weightedSentiment >= 0 ? '+' : ''}
@@ -602,16 +606,17 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
           </div>
         )}
         
-        {/* Overall Sentiment Score */}
+        {/* Raw Composite Sentiment (secondary — unweighted) */}
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-base text-gray-600 dark:text-gray-300">Institutional Sentiment</span>
+              <span className="text-base text-gray-600 dark:text-gray-300">Raw Composite Sentiment</span>
+              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Secondary</span>
               <InfoTooltip title={METRIC_EXPLANATIONS.sentiment.title} position="bottom">
                 {METRIC_EXPLANATIONS.sentiment.description}
               </InfoTooltip>
             </div>
-            <span className={`text-xl font-bold ${
+            <span className={`text-lg font-bold ${
               sentimentData.smartMoneySentiment >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
               {sentimentData.smartMoneySentiment >= 0 ? '+' : ''}{(sentimentData.smartMoneySentiment * 100).toFixed(1)}%
