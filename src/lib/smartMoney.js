@@ -71,8 +71,8 @@ export function getTrafficLight(isBuy, institutionalSentiment, weightedSentiment
     ? weightedSentiment
     : institutionalSentiment;
 
-  // Signal confidence: HIGH when Foreign G data is present (+0.048% spread),
-  // LOW when G is missing (traditional types only, ~0% spread)
+  // Signal confidence: HIGH when Foreign G data is present (+0.060% spread),
+  // LOW when G is missing (traditional types only, +0.026% spread)
   const confidence = hasGData ? 'HIGH' : 'LOW';
   const confSuffix = hasGData ? '' : ' (limited — Foreign G data unavailable)';
 
@@ -671,7 +671,9 @@ export function getSentimentQuintile(sentiment) {
 
 /**
  * Calculate weighted sentiment giving more weight to types with stronger predictive power
- * EDA Finding: G (+0.0126 corr) outperforms baseline (-0.0000)
+ * Weights optimized via differential_evolution + Nelder-Mead (Section 11 of smart_money_eda.ipynb):
+ *   - With G: F=0.45, M=0.10, N=0.00, P=0.20, O=1.50, G=3.00 (spread +0.060%, r=+0.0127)
+ *   - Without G: F=3.00, M=0.04, N=0.00, P=0.04, O=1.69 (spread +0.026%, r=+0.0045)
  * @param {object} typeSentiments - Object mapping client type to sentiment
  * @param {object} byType - Object mapping client type to {buy, sell}
  * @returns {object} - Weighted sentiment analysis
@@ -679,8 +681,13 @@ export function getSentimentQuintile(sentiment) {
 export function calculateWeightedSentiment(typeSentiments, byType) {
   if (!typeSentiments) return { weightedSentiment: null, strongestType: null };
   
-  // Weights based on EDA predictive quality (higher = more predictive)
-  const weights = { F: 1.0, M: 1.0, N: 1.0, P: 0.8, O: 0.5, G: 1.5 };
+  // Check if G data is available to select optimal weight set
+  const hasG = typeSentiments[FOREIGN_FLOW_TYPE] !== undefined && typeSentiments[FOREIGN_FLOW_TYPE] !== null;
+  
+  // Optimized weights via differential_evolution + Nelder-Mead (Section 11)
+  const weights = hasG
+    ? { F: 0.45, M: 0.10, N: 0.00, P: 0.20, O: 1.50, G: 3.00 }  // G available: G dominant, O secondary
+    : { F: 3.00, M: 0.04, N: 0.00, P: 0.04, O: 1.69 };           // G missing: F dominant, O secondary
   
   let weightedSum = 0;
   let totalWeight = 0;

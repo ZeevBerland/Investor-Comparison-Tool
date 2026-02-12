@@ -381,7 +381,7 @@ export default function Dashboard() {
             </div>
             
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-3">
-              EDA-weighted prioritizes Foreign Other (G) based on its +5.760% predictive spread. This drives the traffic light decisions.
+              Optimized weights (G=3.0, O=1.5, F=0.45 with G; F=3.0, O=1.69 without G) drive the traffic light decisions.
             </p>
             <p className="text-sm mt-1.5 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-green-500" />

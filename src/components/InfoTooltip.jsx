@@ -189,7 +189,7 @@ export const METRIC_EXPLANATIONS = {
   // Traffic light
   trafficLight: {
     title: 'Traffic Light Signal',
-    description: 'Quick trade recommendation based on your intended action vs institutional sentiment. GREEN = aligned, YELLOW = mixed signals, RED = opposing sentiment.',
+    description: 'Quick trade recommendation based on your intended action vs optimized weighted institutional sentiment. GREEN = aligned, YELLOW = mixed signals, RED = opposing sentiment. Weights are optimized via differential evolution to maximize predictive spread.',
   },
   
   // Foreign Flow (Phase 1)
@@ -223,7 +223,7 @@ export const METRIC_EXPLANATIONS = {
   // Weighted Sentiment (Phase 5)
   weightedSentiment: {
     title: 'Weighted Sentiment',
-    description: 'Sentiment score where each investor type is weighted by its EDA-derived predictive power. Foreign Other (G) gets 1.5x weight due to its +5.760% spread and +0.0126 correlation. Portfolio Managers (P) gets 0.8x weight. Compare with equal-weighted sentiment to see the impact.',
+    description: 'Sentiment score where each investor type is weighted by optimized predictive power (via differential evolution). With G data: G=3.0, O=1.5, F=0.45, P=0.20, M=0.10. Without G: F=3.0, O=1.69. Achieves +0.060% spread with G available, +0.026% without. Compare with equal-weighted sentiment to see the impact.',
   },
   strongestPredictor: {
     title: 'Strongest Predictor',
@@ -241,6 +241,6 @@ export const METRIC_EXPLANATIONS = {
   },
   signalConfidence: {
     title: 'Signal Confidence (G Coverage)',
-    description: 'EDA validation showed the weighted sentiment is 3x stronger when Foreign Other (G) data is available (+0.048% spread, r=+0.0093) vs when G is missing (~0% spread). HIGH confidence means G data is present for this security — the traffic light signal is backed by the strongest predictor. LOW confidence means G data is unavailable — the signal relies on traditional institutional types with near-zero predictive power.',
+    description: 'Optimized weighted sentiment (via differential evolution) achieves +0.060% spread when Foreign Other (G) data is available (r=+0.013) vs +0.026% when G is missing. HIGH confidence means G data is present — the signal is driven by the strongest predictor (G weight=3.0). LOW confidence means G is unavailable — the signal relies on Pension (F weight=3.0) and Foreign Investors (O weight=1.69) with weaker but positive predictive power.',
   },
 };
