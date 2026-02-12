@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Search, AlertTriangle, CheckCircle, Info, AlertCircle, TrendingUp, TrendingDown, Activity, Users, Zap, ThumbsUp, ThumbsDown, Minus, History, BarChart2, Clock, Globe, ArrowLeftRight, Star, Calendar } from 'lucide-react';
+import { Search, AlertTriangle, CheckCircle, Info, AlertCircle, TrendingUp, TrendingDown, Activity, Users, Zap, ThumbsUp, ThumbsDown, Minus, History, BarChart2, Clock, Globe, ArrowLeftRight, Star, Calendar, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useDataStore } from '../hooks/useDataStore';
 import { getTrafficLight, getSentimentLevel, CLIENT_TYPES, SMART_MONEY_TYPES, calculateConsensusScore, calculateSentimentTrend, getConfidenceLevel, calculatePatternStrength, getEnhancedAlertLevel, calculateForeignFlowSignal, getSentimentQuintile, calculateWeightedSentiment, getForeignDayContext, getMonthEndContext, FOREIGN_FLOW_TYPE, FOREIGN_FLOW_EDA, TYPE_PREDICTIVE_QUALITY } from '../lib/smartMoney';
 import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
@@ -137,6 +137,9 @@ export default function TradeChecker() {
       // Add to history only if there's valid sentiment data
       if (hasValidSentiment) {
         const histWeighted = calculateWeightedSentiment(sentiment.typeSentiments, sentiment.byType);
+        const histForeignFlow = calculateForeignFlowSignal(sentiment);
+        const histHasG = histForeignFlow != null;
+        const histTrafficLight = getTrafficLight(action === 'buy', sentiment.smartMoneySentiment, histWeighted.weightedSentiment, histHasG);
         setHistory(prev => [{
           isin: cleanIsin,
           symbol: secInfo?.symbol || cleanIsin.substring(0, 8),
@@ -144,7 +147,8 @@ export default function TradeChecker() {
           date: currentDate,
           timestamp: new Date().toLocaleTimeString(),
           smartMoneySentiment: sentiment.smartMoneySentiment,
-          trafficLight: getTrafficLight(action === 'buy', sentiment.smartMoneySentiment, histWeighted.weightedSentiment),
+          trafficLight: histTrafficLight,
+          confidence: histTrafficLight.confidence,
         }, ...prev.slice(0, 9)]);
       }
     } else {
@@ -404,7 +408,11 @@ export default function TradeChecker() {
                       )}
                     </td>
                     <td className="py-2 px-3 text-center">
-                      <TrafficLightMini color={item.trafficLight?.color} />
+                      <div className="flex items-center justify-center gap-1.5">
+                        <TrafficLightMini color={item.trafficLight?.color} confidence={item.confidence} />
+                        {item.confidence === 'HIGH' && <ShieldCheck className="w-3 h-3 text-green-500" />}
+                        {item.confidence === 'LOW' && <ShieldAlert className="w-3 h-3 text-amber-500" />}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -417,7 +425,7 @@ export default function TradeChecker() {
   );
 }
 
-function TrafficLightMini({ color }) {
+function TrafficLightMini({ color, confidence }) {
   // Handle "No Data" case
   if (color === 'GRAY') {
     return (
@@ -428,7 +436,7 @@ function TrafficLightMini({ color }) {
   }
   
   return (
-    <div className="flex justify-center gap-1">
+    <div className={`flex justify-center gap-1 ${confidence === 'LOW' ? 'opacity-60' : ''}`}>
       <div className={`w-3 h-3 rounded-full ${color === 'RED' ? 'bg-red-500' : 'bg-red-200'}`} />
       <div className={`w-3 h-3 rounded-full ${color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200'}`} />
       <div className={`w-3 h-3 rounded-full ${color === 'GREEN' ? 'bg-green-500' : 'bg-green-200'}`} />
@@ -442,7 +450,8 @@ function TrafficLightMini({ color }) {
 function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, historicalContext }) {
   // Use EDA-weighted sentiment as primary signal (aligns with EDA insights: Foreign G is strongest predictor)
   const weightedValue = historicalContext?.weighted?.weightedSentiment;
-  const trafficLight = getTrafficLight(isBuy, sentimentData.smartMoneySentiment, weightedValue);
+  const hasGData = historicalContext?.foreignFlow != null;
+  const trafficLight = getTrafficLight(isBuy, sentimentData.smartMoneySentiment, weightedValue, hasGData);
   
   const trafficColors = {
     GREEN: {
@@ -487,20 +496,34 @@ function SmartMoneySentimentCard({ sentimentData, isBuy, securityInfo, pattern, 
           )}
         </div>
         
-        {/* Traffic Light */}
+        {/* Traffic Light + Confidence */}
         <div className="flex items-center gap-2">
           {trafficLight.color === 'GRAY' ? (
             <div className="flex gap-1">
               <div className="w-4 h-4 rounded-full bg-gray-400" />
             </div>
           ) : (
-            <div className="flex gap-1">
+            <div className={`flex gap-1 ${trafficLight.confidence === 'LOW' ? 'opacity-60' : ''}`}>
               <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'RED' ? 'bg-red-500' : 'bg-red-200 dark:bg-red-800'}`} />
               <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'YELLOW' ? 'bg-yellow-500' : 'bg-yellow-200 dark:bg-yellow-800'}`} />
               <div className={`w-4 h-4 rounded-full ${trafficLight.color === 'GREEN' ? 'bg-green-500' : 'bg-green-200 dark:bg-green-800'}`} />
             </div>
           )}
           <span className={`font-bold ${config.text}`}>{trafficLight.label}</span>
+          {/* Signal Confidence Badge */}
+          {trafficLight.confidence && trafficLight.confidence !== 'NONE' && (
+            trafficLight.confidence === 'HIGH' ? (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                High Confidence
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                <ShieldAlert className="w-3.5 h-3.5" />
+                Low Confidence
+              </span>
+            )
+          )}
           <InfoTooltip title={METRIC_EXPLANATIONS.trafficLight.title} position="left">
             {METRIC_EXPLANATIONS.trafficLight.description}
           </InfoTooltip>

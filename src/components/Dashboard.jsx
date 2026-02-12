@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useDataStore } from '../hooks/useDataStore';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Target, BarChart3, Users, Info, Activity, Zap, CheckCircle, XCircle, AlertTriangle, AlertCircle, Shield, Clock, Eye, Globe, ArrowLeftRight, Star } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, BarChart3, Users, Info, Activity, Zap, CheckCircle, XCircle, AlertTriangle, AlertCircle, Shield, ShieldCheck, Clock, Eye, Globe, ArrowLeftRight, Star } from 'lucide-react';
 import { CLIENT_TYPES, SMART_MONEY_TYPES, getEnhancedAlertLevel, calculatePatternStrength, calculateConsensusScore, getSentimentLevel, calculateForeignFlowSignal, calculateWeightedSentiment, FOREIGN_FLOW_TYPE, FOREIGN_FLOW_EDA, TYPE_PREDICTIVE_QUALITY } from '../lib/smartMoney';
 import InfoTooltip, { METRIC_EXPLANATIONS } from './InfoTooltip';
 
@@ -52,6 +52,7 @@ export default function Dashboard() {
     let contrarianCount = 0;
     let totalWeightedSentiment = 0;
     let weightedSentimentCount = 0;
+    let gDataCount = 0; // positions with Foreign G data (high confidence)
     
     for (const isin of portfolio) {
       const sentiment = getSmartMoneySentiment(isin, sessionDate);
@@ -101,6 +102,7 @@ export default function Dashboard() {
       
       // Accumulate foreign flow stats
       if (foreignFlow) {
+        gDataCount++;
         if (foreignFlow.direction === 'BULLISH') foreignFlowBullish++;
         else if (foreignFlow.direction === 'BEARISH') foreignFlowBearish++;
         else foreignFlowNeutral++;
@@ -173,6 +175,11 @@ export default function Dashboard() {
         neutral: foreignFlowNeutral,
         contrarianSignals: contrarianCount,
         total: foreignFlowBullish + foreignFlowBearish + foreignFlowNeutral,
+      },
+      gCoverage: {
+        count: gDataCount,
+        total: sentimentCount,
+        percent: sentimentCount > 0 ? (gDataCount / sentimentCount * 100) : 0,
       },
     };
   }, [smartMoneyLoaded, processedData, selectedTrader, sessionDate, getSmartMoneySentiment, detectSmartMoneyPattern, getPatternOutcomes, isinToSecurity]);
@@ -264,7 +271,7 @@ export default function Dashboard() {
 
       {/* Key Metrics */}
       {portfolioAnalysis && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <MetricCard
             icon={BarChart3}
             label="Securities Tracked"
@@ -280,6 +287,14 @@ export default function Dashboard() {
             subtext={portfolioAnalysis.avgWeightedSentiment >= 0.1 ? 'Bullish bias' : portfolioAnalysis.avgWeightedSentiment <= -0.1 ? 'Bearish bias' : 'Neutral'}
             color={portfolioAnalysis.avgWeightedSentiment >= 0 ? 'green' : 'red'}
             explanation={METRIC_EXPLANATIONS.portfolioSentiment}
+          />
+          <MetricCard
+            icon={ShieldCheck}
+            label="G Coverage"
+            value={`${portfolioAnalysis.gCoverage.count}/${portfolioAnalysis.gCoverage.total}`}
+            subtext={`${portfolioAnalysis.gCoverage.percent.toFixed(0)}% high confidence`}
+            color={portfolioAnalysis.gCoverage.percent >= 50 ? 'green' : 'amber'}
+            explanation={METRIC_EXPLANATIONS.signalConfidence}
           />
           <MetricCard
             icon={AlertTriangle}
@@ -367,6 +382,12 @@ export default function Dashboard() {
             
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-3">
               EDA-weighted prioritizes Foreign Other (G) based on its +5.760% predictive spread. This drives the traffic light decisions.
+            </p>
+            <p className="text-sm mt-1.5 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+              <span className="text-gray-500 dark:text-gray-400">
+                <strong className="text-gray-700 dark:text-gray-300">{portfolioAnalysis.gCoverage.count}</strong> of {portfolioAnalysis.gCoverage.total} positions have high-confidence signal (G available)
+              </span>
             </p>
           </div>
         </div>

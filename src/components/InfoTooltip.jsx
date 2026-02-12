@@ -239,4 +239,8 @@ export const METRIC_EXPLANATIONS = {
     title: 'Month-End Rebalancing',
     description: 'During month-end (day >= 25), foreign trading volume is typically 11.1% higher due to portfolio rebalancing. Quarter-end effects are even more pronounced. Volume context helps interpret sentiment signals.',
   },
+  signalConfidence: {
+    title: 'Signal Confidence (G Coverage)',
+    description: 'EDA validation showed the weighted sentiment is 3x stronger when Foreign Other (G) data is available (+0.048% spread, r=+0.0093) vs when G is missing (~0% spread). HIGH confidence means G data is present for this security — the traffic light signal is backed by the strongest predictor. LOW confidence means G data is unavailable — the signal relies on traditional institutional types with near-zero predictive power.',
+  },
 };

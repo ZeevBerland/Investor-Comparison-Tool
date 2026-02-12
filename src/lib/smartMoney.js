@@ -64,12 +64,17 @@ export function getSentimentAlertLevel(sentiment) {
  * @param {number|null} institutionalSentiment - Combined institutional sentiment
  * @returns {object} - { color: 'GREEN'|'YELLOW'|'RED'|'GRAY', label, recommendation }
  */
-export function getTrafficLight(isBuy, institutionalSentiment, weightedSentiment = null) {
+export function getTrafficLight(isBuy, institutionalSentiment, weightedSentiment = null, hasGData = false) {
   // Use EDA-weighted sentiment as primary signal when available (aligns with EDA insights)
   // Falls back to raw composite if weighted is not provided
   const primarySentiment = (weightedSentiment !== null && weightedSentiment !== undefined)
     ? weightedSentiment
     : institutionalSentiment;
+
+  // Signal confidence: HIGH when Foreign G data is present (+0.048% spread),
+  // LOW when G is missing (traditional types only, ~0% spread)
+  const confidence = hasGData ? 'HIGH' : 'LOW';
+  const confSuffix = hasGData ? '' : ' (limited — Foreign G data unavailable)';
 
   // Check for no data case
   if (primarySentiment === null || primarySentiment === undefined) {
@@ -77,6 +82,7 @@ export function getTrafficLight(isBuy, institutionalSentiment, weightedSentiment
       color: 'GRAY',
       label: 'No Data',
       recommendation: 'NONE',
+      confidence: 'NONE',
       message: 'No institutional trading data available for this security',
     };
   }
@@ -89,21 +95,24 @@ export function getTrafficLight(isBuy, institutionalSentiment, weightedSentiment
       color: 'GREEN',
       label: 'Aligned',
       recommendation: 'PROCEED',
-      message: 'Your trade direction aligns with EDA-weighted institutional sentiment',
+      confidence,
+      message: `Your trade direction aligns with EDA-weighted institutional sentiment${confSuffix}`,
     };
   } else if (alignment > -0.3) {
     return {
       color: 'YELLOW',
       label: 'Mixed',
       recommendation: 'ADJUST',
-      message: 'Mixed signals from EDA-weighted institutional analysis',
+      confidence,
+      message: `Mixed signals from EDA-weighted institutional analysis${confSuffix}`,
     };
   } else {
     return {
       color: 'RED',
       label: 'Counter',
       recommendation: 'RECONSIDER',
-      message: 'Your trade opposes EDA-weighted institutional sentiment',
+      confidence,
+      message: `Your trade opposes EDA-weighted institutional sentiment${confSuffix}`,
     };
   }
 }
